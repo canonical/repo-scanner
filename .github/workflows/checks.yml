@@ -1,0 +1,13 @@
+name: Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    uses: canonical/secops-workflows/.github/workflows/lint.yml@main
+
+  security:
+    uses: canonical/secops-workflows/.github/workflows/security.yml@main
