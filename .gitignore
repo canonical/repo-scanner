@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+build/
+
+# tooling caches
+.pytest_cache/
+.ruff_cache/
+.tox/
+.tooling/
+
+# uv native lock (we lock via requirements/*.txt instead)
+uv.lock

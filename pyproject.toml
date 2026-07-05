@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "repo-scanner"
+version = "0.1.0"
+description = """
+Orchestrates security scanners (secrets, SBOM, SCA, SAST, IaC, workflow)
+over a repository, locally or in an ephemeral container.
+"""
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+dependencies = []
+
+[project.scripts]
+reposcan = "repo_scanner.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/repo_scanner"]
+
+# Dev tooling is installed from the hashed, per-environment locks under
+# requirements/ (compiled with `uv pip compile --universal --generate-hashes`).
+# Day-to-day checks run via tox; if tox is not installed, run without installing
+# anything first: `uvx --with tox-uv tox run`.
+
+[tool.ruff]
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.basedpyright]
+include = ["src", "tests"]
+pythonVersion = "3.10"
+typeCheckingMode = "standard"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+addopts = "-v"
+
+[tool.tox]
+requires = ["tox>=4.22", "tox-uv>=1"]
+env_list = ["py310", "py312", "py314", "lint", "type"]
+
+# Version matrix (py310/py312/py314): install the package and run the unit tests.
+[tool.tox.env_run_base]
+description = "Run unit tests"
+deps = ["-r{tox_root}/requirements/test.txt"]
+# Recreate each run: tox tracks installs in an internal journal, not the env's
+# real contents, so an interrupted run can leave a venv missing pytest that later
+# runs reuse and fail on. uv makes the rebuild near-free.
+recreate = true
+# XDG_CACHE_HOME: an isolated, empty per-env dir so the unit tests never resolve
+# real bootstrap-installed tools and accidentally execute scanners. Keeps them
+# hermetic. PYTHONUNBUFFERED: stream per-test output live under tox's pipe.
+set_env = { PYTHONUNBUFFERED = "1", XDG_CACHE_HOME = "{env_tmp_dir}/xdg-cache" }
+commands = [["pytest", { replace = "posargs", default = [], extend = true }]]
+
+[tool.tox.env.lint]
+description = "Lint and format-check with ruff"
+skip_install = true
+recreate = true
+deps = ["-r{tox_root}/requirements/lint.txt"]
+commands = [
+    ["ruff", "check", "{tox_root}/src", "{tox_root}/tests"],
+    ["ruff", "format", "--check", "{tox_root}/src", "{tox_root}/tests"],
+]
+
+[tool.tox.env.type]
+description = "Type-check with basedpyright"
+recreate = true
+# Include the test lock so the test modules (which import pytest) type-check too.
+deps = [
+    "-r{tox_root}/requirements/typecheck.txt",
+    "-r{tox_root}/requirements/test.txt",
+]
+commands = [["basedpyright", "{tox_root}/src", "{tox_root}/tests"]]
