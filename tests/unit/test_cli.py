@@ -15,7 +15,17 @@ def test_backend_is_a_global_option_before_the_subcommand() -> None:
 
 
 def test_main_dispatches_to_exec_and_returns_its_exit_code() -> None:
-    code = main(["exec", "--", sys.executable, "-c", "import sys; sys.exit(5)"])
+    code = main(
+        [
+            "--backend",
+            "local",
+            "exec",
+            "--",
+            sys.executable,
+            "-c",
+            "import sys; sys.exit(5)",
+        ]
+    )
     assert code == 5
 
 

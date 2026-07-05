@@ -78,3 +78,19 @@ deps = [
     "-r{tox_root}/requirements/test.txt",
 ]
 commands = [["basedpyright", "{tox_root}/src", "{tox_root}/tests"]]
+
+# Integration tests against real docker/lxd. Generated per Python target as
+# integration-py310/py312/py314, excluded from env_list (not run by default); run
+# them across the matrix with:
+#     tox run -f integration
+# Each generated env inherits the base test deps and package install, overrides the
+# command to target tests/integration, and passes through the environment the
+# docker/lxc clients need (HOME for the lxc client config, DOCKER_HOST /
+# XDG_RUNTIME_DIR for non-default or rootless sockets).
+[tool.tox.env_base.integration]
+description = "Integration tests against real docker/lxd"
+factors = [["py310", "py312", "py314"]]
+commands = [
+    ["pytest", "{tox_root}/tests/integration", { replace = "posargs", default = [], extend = true }],
+]
+pass_env = ["HOME", "DOCKER_HOST", "XDG_RUNTIME_DIR"]

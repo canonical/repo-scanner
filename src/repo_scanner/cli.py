@@ -19,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     # GLOBAL OPTIONS
     parser.add_argument(
         "--backend",
-        choices=["auto", "local"],
+        choices=["auto", "local", "docker", "lxd"],
         default="auto",
         help="Execution backend to run in (default: auto).",
     )
