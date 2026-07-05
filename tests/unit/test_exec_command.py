@@ -1,11 +1,11 @@
-"""Tests for the `reposcan exec` command (repo_scanner.commands.exec_)."""
+"""Tests for the `reposcan exec` command (repo_scanner.commands.exec_cmd)."""
 
 import io
 import logging
 import sys
 from contextlib import redirect_stdout
 
-from repo_scanner.commands.exec_ import TIMEOUT_EXIT_CODE, run_exec
+from repo_scanner.commands.exec_cmd import TIMEOUT_EXIT_CODE, run_exec
 from repo_scanner.execution.local import LocalContext
 
 

@@ -53,11 +53,15 @@ deps = ["-r{tox_root}/requirements/test.txt"]
 # real contents, so an interrupted run can leave a venv missing pytest that later
 # runs reuse and fail on. uv makes the rebuild near-free.
 recreate = true
-# XDG_CACHE_HOME: an isolated, empty per-env dir so the unit tests never resolve
-# real bootstrap-installed tools and accidentally execute scanners. Keeps them
-# hermetic. PYTHONUNBUFFERED: stream per-test output live under tox's pipe.
-set_env = { PYTHONUNBUFFERED = "1", XDG_CACHE_HOME = "{env_tmp_dir}/xdg-cache" }
 commands = [["pytest", { replace = "posargs", default = [], extend = true }]]
+
+# XDG_CACHE_HOME / XDG_CONFIG_HOME: isolated, empty per-env dirs so the unit tests
+# never resolve real bootstrap-installed tools or read a developer's saved config.
+# Keeps them hermetic. PYTHONUNBUFFERED: stream per-test output live under tox's pipe.
+[tool.tox.env_run_base.set_env]
+PYTHONUNBUFFERED = "1"
+XDG_CACHE_HOME = "{env_tmp_dir}/xdg-cache"
+XDG_CONFIG_HOME = "{env_tmp_dir}/xdg-config"
 
 [tool.tox.env.lint]
 description = "Lint and format-check with ruff"
