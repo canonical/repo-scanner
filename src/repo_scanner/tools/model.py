@@ -1,11 +1,12 @@
 """The Tool model: reposcan's external tools, defined in code.
 
-Every tool is one of a few kinds: a PyPI package, a prebuilt native binary, a Go
-module built with `go install`, or the pinned Go toolchain used to build the Go
-tools. A tool carries its own supply-chain pins so the whole set of tools and their
-pins is auditable in one place rather than split across a separate manifest:
+Every tool is one of a few kinds: a PyPI package, a prebuilt native binary
+(including the pinned Go toolchain, which is kept as a whole tree), or a Go module
+built with `go install`. A tool carries its own supply-chain pins so the whole set
+of tools and their pins is auditable in one place rather than split across a
+separate manifest:
 
-  - native binaries and the Go SDK pin each per-platform download by sha256;
+  - native binaries (including the Go SDK) pin each per-platform download by sha256;
   - Go tools pin the module by its go.sum h1 hashes, verified at build;
   - PyPI tools install from a hash-pinned requirements lock (--require-hashes).
 
@@ -22,11 +23,13 @@ from typing import ClassVar, Protocol
 
 
 class ToolKind(str, Enum):
+    """How a tool is installed: from PyPI, as a pinned prebuilt download (a native
+    binary or the Go SDK archive), or built from Go source. Used for display; the
+    actual install behavior comes from the tool's type, not this label."""
+
     PYPI = "pypi"
     NATIVE_BINARY = "native_binary"
     GO = "go"
-    GO_SDK = "go_sdk"
-    UV = "uv"
 
 
 @dataclass(frozen=True)
@@ -57,6 +60,12 @@ class Tool(Protocol):
     kind: ClassVar[ToolKind]
 
     @property
+    def requires(self) -> "tuple[Tool, ...]":
+        """The tools that must be installed before this one (its dependencies): PyPI
+        tools require uv, Go tools require the Go SDK; empty when there is none."""
+        ...
+
+    @property
     def name(self) -> str: ...
 
     @property
@@ -67,6 +76,83 @@ class Tool(Protocol):
         Each line is run via the execution context (bootstrap) or concatenated into
         an image build script (image generation)."""
         ...
+
+    def installed_path(self, install_root: str) -> str:
+        """The installed executable's path under `install_root`. It exists only once
+        the tool is installed, so it doubles as the marker `tools` checks, and it is
+        what `invoke` runs."""
+        ...
+
+
+@dataclass(frozen=True, kw_only=True)
+class NativeBinary:
+    """A tool installed from a pinned per-platform prebuilt download. `executable` is
+    the executable's name inside the download (defaulting to `name`); it is exposed at
+    `bin/<name>`, whatever shape the download takes:
+
+    - an archive is extracted whole under `opt/<name>/`, and the executable, found
+      wherever it sits, is symlinked into `bin/`. Keeping the tree lets multi-file
+      downloads like the Go toolchain resolve their siblings (its `go` binary finds
+      GOROOT through the symlink); single-file archives just symlink one binary.
+    - a bare (unarchived) binary is installed straight to `bin/<name>`.
+    """
+
+    name: str
+    version: str
+    executable: str = ""
+    requires: tuple[Tool, ...] = ()
+    downloads: tuple[Download, ...] = ()
+    kind: ClassVar[ToolKind] = ToolKind.NATIVE_BINARY
+
+    def _download_for(self, platform: Platform) -> Download | None:
+        for download in self.downloads:
+            if download.os == platform.os and download.arch == platform.arch:
+                return download
+        return None
+
+    def _fetch(self, download: Download, archive: str) -> list[str]:
+        """Download `download` to `archive` and verify its sha256."""
+        return [
+            f'curl -fsSL "{download.url}" -o "{archive}"',
+            f'echo "{download.sha256}  {archive}" | sha256sum -c -',
+        ]
+
+    def installed_path(self, install_root: str) -> str:
+        return f"{install_root}/bin/{self.name}"
+
+    def install_commands(self, platform: Platform, install_root: str) -> list[str]:
+        download = self._download_for(platform)
+        if download is None:
+            return [
+                _NO_DOWNLOAD.format(
+                    name=self.name,
+                    version=self.version,
+                    os=platform.os,
+                    arch=platform.arch,
+                )
+            ]
+        cache = f"{install_root}/cache"
+        archive = f"{cache}/{self.name}-{self.version}"
+        dest = f"{install_root}/bin/{self.name}"
+        executable = self.executable or self.name
+        commands = [
+            f'mkdir -p "{cache}" "{install_root}/bin"',
+            *self._fetch(download, archive),
+        ]
+        if download.url.endswith((".tar.gz", ".tgz", ".tar")):
+            # Extract the archive whole and symlink the executable (found wherever it
+            # sits, so platform-nested layouts need no special-casing) into bin/.
+            tree = f"{install_root}/opt/{self.name}"
+            commands += [
+                f'rm -rf "{tree}" && mkdir -p "{tree}"',
+                f'tar -xf "{archive}" -C "{tree}"',
+                f'ln -sf "$(find "{tree}" -type f -name "{executable}" | head -1)" '
+                f'"{dest}"',
+            ]
+        else:
+            # A bare binary download: install it directly.
+            commands.append(f'install -m 0755 "{archive}" "{dest}"')
+        return commands
 
 
 @dataclass(frozen=True)
@@ -81,10 +167,17 @@ class PypiTool:
     version: str
     requirements: str
     entrypoints: tuple[str, ...] = ()
+    requires: tuple[Tool, ...] = ()
     kind: ClassVar[ToolKind] = ToolKind.PYPI
 
+    def installed_path(self, install_root: str) -> str:
+        # The first console script is the command `invoke` runs; it is symlinked last
+        # in the install, so it also marks that the venv install completed.
+        entry = self.entrypoints[0] if self.entrypoints else self.name
+        return f"{install_root}/bin/{entry}"
+
     def install_commands(self, platform: Platform, install_root: str) -> list[str]:
-        uv = f"{install_root}/bin/uv"  # provided by Uv, installed first
+        uv = f"{install_root}/bin/uv"  # the uv binary, installed first
         pypi = f"{install_root}/pypi"
         venv = f"{pypi}/{self.name}"
         lock = f"{pypi}/{self.name}.txt"
@@ -107,92 +200,13 @@ class PypiTool:
         return lines
 
 
-@dataclass(frozen=True, kw_only=True)
-class DownloadableTool:
-    """Base for tools installed from a pinned per-platform Download: it owns the
-    downloads and the shared download-and-verify step. Subclasses add how the
-    downloaded artifact is placed. Not a Tool on its own (it has no name/version)."""
-
-    downloads: tuple[Download, ...] = ()
-
-    def _download_for(self, platform: Platform) -> Download | None:
-        for download in self.downloads:
-            if download.os == platform.os and download.arch == platform.arch:
-                return download
-        return None
-
-    def _fetch(self, download: Download, archive: str) -> list[str]:
-        """Download `download` to `archive` and verify its sha256."""
-        return [
-            f'curl -fsSL "{download.url}" -o "{archive}"',
-            f'echo "{download.sha256}  {archive}" | sha256sum -c -',
-        ]
-
-
-@dataclass(frozen=True, kw_only=True)
-class NativeBinary(DownloadableTool):
-    """A tool shipped as a prebuilt binary, one Download per platform. `binary_name`
-    is the executable's name inside the downloaded archive; it is installed as
-    `bin/<name>`."""
-
-    name: str
-    version: str
-    binary_name: str
-    kind: ClassVar[ToolKind] = ToolKind.NATIVE_BINARY
-
-    def install_commands(self, platform: Platform, install_root: str) -> list[str]:
-        download = self._download_for(platform)
-        if download is None:
-            return [
-                _NO_DOWNLOAD.format(
-                    name=self.name,
-                    version=self.version,
-                    os=platform.os,
-                    arch=platform.arch,
-                )
-            ]
-        cache = f"{install_root}/cache"
-        archive = f"{cache}/{self.name}-{self.version}"
-        dest = f"{install_root}/bin/{self.name}"
-        commands = [
-            f'mkdir -p "{cache}" "{install_root}/bin"',
-            *self._fetch(download, archive),
-        ]
-        if download.url.endswith((".tar.gz", ".tgz", ".tar")):
-            # Extract, then locate `binary_name` wherever it sits in the archive
-            # (some tarballs nest it under a platform-named dir) and install it.
-            unpacked = f"{archive}.d"
-            commands += [
-                f'rm -rf "{unpacked}" && mkdir -p "{unpacked}"',
-                f'tar -xf "{archive}" -C "{unpacked}"',
-                f"install -m 0755 "
-                f'"$(find "{unpacked}" -type f -name "{self.binary_name}" | head -1)" '
-                f'"{dest}"',
-            ]
-        else:
-            # A bare binary download: install it directly.
-            commands.append(f'install -m 0755 "{archive}" "{dest}"')
-        return commands
-
-
-@dataclass(frozen=True, kw_only=True)
-class Uv(NativeBinary):
-    """uv, the PyPI installer: a prerequisite for every PyPI tool, first-class
-    alongside GoSdk. It installs exactly as a native binary (inherited); only its
-    kind differs, so install_plan orders it before PyPI tools."""
-
-    name: str = "uv"
-    binary_name: str = "uv"
-    kind: ClassVar[ToolKind] = ToolKind.UV
-
-
 @dataclass(frozen=True)
 class GoTool:
-    """A tool built with `go install`, using the Go toolchain from GoSdk. Pinned by
-    its go.sum h1 hashes (`module_sum`, the module zip; `gomod_sum`, its go.mod),
-    verified at build against a written go.sum with the public checksum DB off.
-    `package` is the go install target (defaults to `module` when it is the module
-    root); `module` is the module path the go.sum entries are keyed on."""
+    """A tool built with `go install`, using the Go toolchain it names in `requires`.
+    Pinned by its go.sum h1 hashes (`module_sum`, the module zip; `gomod_sum`, its
+    go.mod), verified at build against a written go.sum with the public checksum DB
+    off. `package` is the go install target (defaults to `module` when it is the
+    module root); `module` is the module path the go.sum entries are keyed on."""
 
     name: str
     version: str
@@ -200,10 +214,16 @@ class GoTool:
     module_sum: str
     gomod_sum: str
     package: str = ""
+    requires: tuple[Tool, ...] = ()
     kind: ClassVar[ToolKind] = ToolKind.GO
 
+    def installed_path(self, install_root: str) -> str:
+        return f"{install_root}/bin/{self.name}"
+
     def install_commands(self, platform: Platform, install_root: str) -> list[str]:
-        go = f"{install_root}/go-sdk/go/bin/go"
+        # Build with the Go toolchain this tool depends on: its sole requirement is
+        # the Go SDK, whose installed_path is the `go` binary.
+        go = self.requires[0].installed_path(install_root)
         work = f"{install_root}/cache/go-build/{self.name}"
         package = self.package or self.module
         write_go_sum = (
@@ -226,35 +246,3 @@ class GoTool:
             f'"{go}" install "{package}@v{self.version}"',
         ]
         return [" && ".join(steps)]
-
-
-@dataclass(frozen=True, kw_only=True)
-class GoSdk(DownloadableTool):
-    """The pinned Go toolchain, used to build GoTools when the host lacks Go. A build
-    prerequisite, not a scanning tool."""
-
-    version: str
-    kind: ClassVar[ToolKind] = ToolKind.GO_SDK
-
-    @property
-    def name(self) -> str:
-        return "go"
-
-    def install_commands(self, platform: Platform, install_root: str) -> list[str]:
-        download = self._download_for(platform)
-        if download is None:
-            return [
-                _NO_DOWNLOAD.format(
-                    name=self.name,
-                    version=self.version,
-                    os=platform.os,
-                    arch=platform.arch,
-                )
-            ]
-        cache = f"{install_root}/cache"
-        archive = f"{cache}/go-{self.version}"
-        return [
-            f'mkdir -p "{cache}" "{install_root}/go-sdk"',
-            *self._fetch(download, archive),
-            f'tar -xf "{archive}" -C "{install_root}/go-sdk"',
-        ]

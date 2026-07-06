@@ -12,19 +12,20 @@ pypi.org file listings, and the Go checksum database show the hash on the page
 itself; for the GitHub-released binaries the linked release page carries the
 project's own published checksums for that version.
 
-`ALL_TOOLS` maps tool name to tool; look one up with `ALL_TOOLS.get(name)`.
+`TOOLS` maps each scanning tool's name to it, and is what `tools`, `bootstrap`, and
+`invoke` operate on. uv and the Go SDK are not in it: they are build prerequisites,
+pulled in automatically through each tool's `requires`. Look a tool up with
+`TOOLS.get(name)`.
 """
 
 from pathlib import Path
 
 from repo_scanner.tools.model import (
     Download,
-    GoSdk,
     GoTool,
     NativeBinary,
     PypiTool,
     Tool,
-    Uv,
 )
 
 _LOCKS = Path(__file__).parent / "locks"
@@ -41,10 +42,13 @@ def _gh(repo: str, tag: str, asset: str) -> str:
     return f"https://github.com/{repo}/releases/download/{tag}/{asset}"
 
 
-# --- Prerequisites: installed before the tools that build or run against them. ------
+# --- Prerequisites: not scanning tools and not listed in TOOLS, these are named in
+# --- the scanning tools' `requires` and pulled in when those tools are installed. ---
 
+# uv is an ordinary native binary; every PyPI tool names it in `requires`.
 # verify: https://github.com/astral-sh/uv/releases/tag/0.11.26
-UV = Uv(
+UV = NativeBinary(
+    name="uv",
     version="0.11.26",
     downloads=(
         Download(
@@ -62,8 +66,12 @@ UV = Uv(
     ),
 )
 
+# The Go toolchain: an ordinary native binary. Its download is a multi-file tree, so
+# it is kept whole and its `go` executable is symlinked to bin/go (which still finds
+# GOROOT). Go tools name it in `requires`.
 # verify: https://go.dev/dl/#go1.26.4  (SHA256 shown in the table)
-GO_SDK = GoSdk(
+GO_SDK = NativeBinary(
+    name="go",
     version="1.26.4",
     downloads=(
         Download(
@@ -87,7 +95,6 @@ GO_SDK = GoSdk(
 TRUFFLEHOG = NativeBinary(
     name="trufflehog",
     version="3.95.8",
-    binary_name="trufflehog",
     downloads=(
         Download(
             os="linux",
@@ -116,7 +123,6 @@ TRUFFLEHOG = NativeBinary(
 SYFT = NativeBinary(
     name="syft",
     version="1.46.0",
-    binary_name="syft",
     downloads=(
         Download(
             os="linux",
@@ -137,7 +143,6 @@ SYFT = NativeBinary(
 GRYPE = NativeBinary(
     name="grype",
     version="0.115.0",
-    binary_name="grype",
     downloads=(
         Download(
             os="linux",
@@ -158,7 +163,6 @@ GRYPE = NativeBinary(
 TRIVY = NativeBinary(
     name="trivy",
     version="0.72.0",
-    binary_name="trivy",
     downloads=(
         Download(
             os="linux",
@@ -179,7 +183,6 @@ TRIVY = NativeBinary(
 POUTINE = NativeBinary(
     name="poutine",
     version="1.1.6",
-    binary_name="poutine",
     downloads=(
         Download(
             os="linux",
@@ -201,7 +204,6 @@ POUTINE = NativeBinary(
 CDXGEN = NativeBinary(
     name="cdxgen",
     version="12.7.0",
-    binary_name="cdxgen",
     downloads=(
         Download(
             os="linux",
@@ -228,6 +230,7 @@ GOVULNCHECK = GoTool(
     package="golang.org/x/vuln/cmd/govulncheck",
     module_sum="h1:jGVVuNZ7NrBJlFB7IBkZ/R9c8gYCja+SWqrHpBCYJZA=",
     gomod_sum="h1:Ujq+7kg+6B5HsCgDFbMmP0+gAV1zGf05mkh4uF5YEXY=",
+    requires=(GO_SDK,),
 )
 
 # --- PyPI tools: installed into isolated venvs from hash-pinned locks. --------------
@@ -238,6 +241,7 @@ SEMGREP = PypiTool(
     version="1.168.0",
     requirements=_lock("semgrep"),
     entrypoints=("semgrep",),
+    requires=(UV,),
 )
 
 # verify: https://pypi.org/project/checkov/3.3.6/#files  (per-file SHA256)
@@ -246,6 +250,7 @@ CHECKOV = PypiTool(
     version="3.3.6",
     requirements=_lock("checkov"),
     entrypoints=("checkov",),
+    requires=(UV,),
 )
 
 # verify: https://pypi.org/project/zizmor/1.26.1/#files  (per-file SHA256)
@@ -254,17 +259,15 @@ ZIZMOR = PypiTool(
     version="1.26.1",
     requirements=_lock("zizmor"),
     entrypoints=("zizmor",),
+    requires=(UV,),
 )
 
 
-# Every tool, keyed by name. Prerequisites first; order is for display only (dicts
-# keep insertion order), install_plan reorders by dependency. The key is derived from
-# each tool's own name so the two cannot drift.
-ALL_TOOLS: dict[str, Tool] = {
+# all scanning tools keyed by name; this is the user-facing set that `tools` lists
+# and `bootstrap`/`invoke` operate on.
+TOOLS: dict[str, Tool] = {
     tool.name: tool
     for tool in (
-        UV,
-        GO_SDK,
         SEMGREP,
         CHECKOV,
         ZIZMOR,

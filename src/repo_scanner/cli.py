@@ -3,9 +3,18 @@
 import argparse
 import logging
 
-from repo_scanner.commands import config_cmd, exec_cmd
+from repo_scanner.commands import (
+    bootstrap_cmd,
+    config_cmd,
+    exec_cmd,
+    invoke_cmd,
+    tools_cmd,
+)
 from repo_scanner.execution.context import Failure
+from repo_scanner.execution.local import LocalContext
 from repo_scanner.execution.select import BACKENDS, select_context
+from repo_scanner.paths import tools_root
+from repo_scanner.tools.install import current_platform
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +54,44 @@ def build_parser() -> argparse.ArgumentParser:
         nargs=argparse.REMAINDER,
         help="The command to run. Separate it from reposcan's own options with a "
         "double-hyphen, e.g. reposcan exec -- semgrep --version.",
+    )
+
+    # SUBCOMMAND: TOOLS
+    subcommands.add_parser(
+        "tools", help="List the scanning tools and whether each is installed."
+    )
+
+    # SUBCOMMAND: BOOTSTRAP
+    bootstrap_parser = subcommands.add_parser(
+        "bootstrap",
+        help="Install tools onto the host. Runs locally unless --backend is given.",
+    )
+    bootstrap_parser.add_argument(
+        "tools",
+        nargs="*",
+        metavar="TOOL",
+        help="Tools to install; their prerequisites are added automatically. "
+        "Installs every tool when none are named.",
+    )
+
+    # SUBCOMMAND: INVOKE
+    invoke_parser = subcommands.add_parser(
+        "invoke",
+        help="Run an installed tool, passing arguments through to it.",
+    )
+    invoke_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="Kill the tool if it runs longer than this (default: no limit).",
+    )
+    invoke_parser.add_argument("tool", help="The installed tool to run.")
+    invoke_parser.add_argument(
+        "argv",
+        nargs=argparse.REMAINDER,
+        help="Arguments for the tool. Separate them from reposcan's own options with "
+        "a double-hyphen, e.g. reposcan invoke semgrep -- --config auto .",
     )
 
     # SUBCOMMAND: CONFIG
@@ -100,6 +147,47 @@ def main(argv: list[str] | None = None) -> int:
                 # Drop the leading '--', if present.
                 cmd = args.argv[1:] if args.argv and args.argv[0] == "--" else args.argv
                 return exec_cmd.run_exec(ctx, cmd, timeout=args.timeout)
+            finally:
+                ctx.stop()
+        case "tools":
+            # A local catalog listing; no execution context needed.
+            return tools_cmd.run_tools(str(tools_root()))
+        case "bootstrap":
+            # Tools install onto the host to be useful, so default to local; an
+            # explicit --backend can still target a container.
+            ctx = (
+                LocalContext() if args.backend is None else select_context(args.backend)
+            )
+            if isinstance(ctx, Failure):
+                logger.error(ctx.reason)
+                return 2
+            error = ctx.start()
+            if error is not None:
+                logger.error(error.reason)
+                return 1
+            try:
+                return bootstrap_cmd.run_bootstrap(
+                    ctx, args.tools, current_platform(), str(tools_root())
+                )
+            finally:
+                ctx.stop()
+        case "invoke":
+            ctx = select_context(args.backend)
+            if isinstance(ctx, Failure):
+                logger.error(ctx.reason)
+                return 2
+            error = ctx.start()
+            if error is not None:
+                logger.error(error.reason)
+                return 1
+            try:
+                # Drop the leading '--', if present.
+                tool_args = (
+                    args.argv[1:] if args.argv and args.argv[0] == "--" else args.argv
+                )
+                return invoke_cmd.run_invoke(
+                    ctx, args.tool, tool_args, str(tools_root()), timeout=args.timeout
+                )
             finally:
                 ctx.stop()
         case _:
