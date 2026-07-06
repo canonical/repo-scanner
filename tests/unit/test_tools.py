@@ -69,6 +69,9 @@ def test_native_binary_install_downloads_verifies_and_installs() -> None:
     assert "https://example/trufflehog.tar.gz" in lines
     assert "abc123" in lines  # sha256 verification
     assert "/opt/tools/bin/trufflehog" in lines
+    # A tar archive is extracted and the binary located by name (it may be nested).
+    assert "tar -xf" in lines
+    assert "find" in lines and '-name "trufflehog"' in lines
 
 
 def test_missing_download_fails_loudly() -> None:

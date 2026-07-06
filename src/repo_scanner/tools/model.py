@@ -153,14 +153,26 @@ class NativeBinary(DownloadableTool):
             ]
         cache = f"{install_root}/cache"
         archive = f"{cache}/{self.name}-{self.version}"
-        # assumes a tar archive containing `binary_name`; zip/bare-binary not handled
-        return [
+        dest = f"{install_root}/bin/{self.name}"
+        commands = [
             f'mkdir -p "{cache}" "{install_root}/bin"',
             *self._fetch(download, archive),
-            f'tar -xf "{archive}" -C "{cache}"',
-            f'install -m 0755 "{cache}/{self.binary_name}" '
-            f'"{install_root}/bin/{self.name}"',
         ]
+        if download.url.endswith((".tar.gz", ".tgz", ".tar")):
+            # Extract, then locate `binary_name` wherever it sits in the archive
+            # (some tarballs nest it under a platform-named dir) and install it.
+            unpacked = f"{archive}.d"
+            commands += [
+                f'rm -rf "{unpacked}" && mkdir -p "{unpacked}"',
+                f'tar -xf "{archive}" -C "{unpacked}"',
+                f"install -m 0755 "
+                f'"$(find "{unpacked}" -type f -name "{self.binary_name}" | head -1)" '
+                f'"{dest}"',
+            ]
+        else:
+            # A bare binary download: install it directly.
+            commands.append(f'install -m 0755 "{archive}" "{dest}"')
+        return commands
 
 
 @dataclass(frozen=True, kw_only=True)
