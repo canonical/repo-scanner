@@ -11,7 +11,15 @@ from contextlib import contextmanager
 
 import repo_scanner.backends as backends
 import repo_scanner.config as config
-from repo_scanner.backends import Backend, select_backend
+from repo_scanner.backends import (
+    Backend,
+    DockerBackend,
+    LocalBackend,
+    select_backend,
+    tool_context,
+)
+from repo_scanner.execution.docker import DockerContext
+from repo_scanner.execution.local import LocalContext
 from repo_scanner.execution.process import ExecResult, Failure
 
 
@@ -121,3 +129,26 @@ def test_only_container_backends_provide_an_image_builder() -> None:
         assert _backend("lxd").image_builder() is not None
         assert _backend("docker").image_builder() is not None
     assert _backend("local").image_builder() is None  # local installs onto the host
+
+
+def test_tool_context_local_on_host_container_in_the_verified_image() -> None:
+    # Local: tools are on the host, no image is built.
+    assert isinstance(tool_context(LocalBackend()), LocalContext)
+
+    # Container: the tool image (here stubbed via ensure_image) is run; a build
+    # failure surfaces as a Failure.
+    def ensure_ok(builder: object, spec: object, *, force: bool = False) -> str:
+        return "reposcan:tools"
+
+    def ensure_fail(builder: object, spec: object, *, force: bool = False) -> Failure:
+        return Failure(reason="build failed")
+
+    saved = backends.ensure_image
+    try:
+        backends.ensure_image = ensure_ok
+        ctx = tool_context(DockerBackend())
+        assert isinstance(ctx, DockerContext) and ctx._image == "reposcan:tools"
+        backends.ensure_image = ensure_fail
+        assert isinstance(tool_context(DockerBackend()), Failure)
+    finally:
+        backends.ensure_image = saved

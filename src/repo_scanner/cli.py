@@ -3,7 +3,7 @@
 import argparse
 import logging
 
-from repo_scanner.backends import BACKEND_NAMES, select_backend
+from repo_scanner.backends import BACKEND_NAMES, select_backend, tool_context
 from repo_scanner.commands import (
     bootstrap_cmd,
     config_cmd,
@@ -150,12 +150,14 @@ def main(argv: list[str] | None = None) -> int:
                 return config_cmd.set_value(args.key, args.value)
             return config_cmd.get_value(args.key)
         case "exec":
-            # main owns the context lifecycle; the command only runs in it.
             backend = select_backend(args.backend)
             if isinstance(backend, Failure):
                 logger.error(backend.reason)
                 return 2
-            ctx = backend.context()
+            ctx = tool_context(backend)
+            if isinstance(ctx, Failure):
+                logger.error(ctx.reason)
+                return 1
             error = ctx.start()
             if error is not None:
                 logger.error(error.reason)
@@ -205,7 +207,10 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(backend, Failure):
                 logger.error(backend.reason)
                 return 2
-            ctx = backend.context()
+            ctx = tool_context(backend)
+            if isinstance(ctx, Failure):
+                logger.error(ctx.reason)
+                return 1
             error = ctx.start()
             if error is not None:
                 logger.error(error.reason)

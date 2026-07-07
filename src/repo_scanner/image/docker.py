@@ -19,9 +19,13 @@ class DockerImageBuilder:
     def reference(self, spec: BuildSpec) -> str:
         return f"{NAME}:{spec.short_digest}"
 
-    def exists(self, reference: str) -> bool:
-        result = run_process(["docker", "image", "inspect", reference], timeout=30)
-        return isinstance(result, ExecResult) and result.exit_code == 0
+    def identity(self, reference: str) -> str | None:
+        # The image ID (a sha256) is Docker's content hash of the image.
+        argv = ["docker", "image", "inspect", "--format", "{{.Id}}", reference]
+        result = run_process(argv, timeout=30)
+        if isinstance(result, ExecResult) and result.exit_code == 0:
+            return result.stdout.strip() or None
+        return None
 
     def build(self, spec: BuildSpec) -> str | Failure:
         # Build context: a temp dir with the install script and a Dockerfile that

@@ -1,14 +1,4 @@
-"""Execution/build backends: lxd, docker, local.
-
-A Backend is a place reposcan can work. Each knows whether it is available on this
-host and produces the two role objects for that backend: an ExecutionContext to run
-commands in, and (for the container backends) an ImageBuilder to bake the tools into
-an image.
-
-`select_backend` chooses one by precedence: an explicit request, then
-$REPOSCAN_BACKEND, then saved config, then 'auto' (the first available of lxd, docker,
-local).
-"""
+"""Execution/build backends: lxd, docker, local."""
 
 import os
 from dataclasses import dataclass
@@ -20,9 +10,11 @@ from repo_scanner.execution.docker import DockerContext
 from repo_scanner.execution.local import LocalContext
 from repo_scanner.execution.lxd import LxdContext
 from repo_scanner.execution.process import Failure, run_process
-from repo_scanner.image.builder import ImageBuilder
+from repo_scanner.image.build_spec import BASE_IMAGE, build_spec
+from repo_scanner.image.builder import ImageBuilder, ensure_image
 from repo_scanner.image.docker import DockerImageBuilder
 from repo_scanner.image.lxd import LxdImageBuilder
+from repo_scanner.tools.install import current_platform
 
 
 @dataclass(frozen=True)
@@ -47,15 +39,15 @@ def _probe(command: list[str]) -> Availability:
 
 
 class Backend(Protocol):
-    """A place reposcan can work: it reports its availability and produces the context
-    to run in and the image builder to build for. `image_builder` is None for a
-    backend that cannot build images (local)."""
+    """A place reposcan can work: it reports its availability and produces a context to
+    run in (optionally from a specific `image`) and the image builder to build for.
+    `image_builder` is None for a backend that cannot build images (local)."""
 
     name: str
 
     def availability(self) -> Availability: ...
 
-    def context(self) -> ExecutionContext: ...
+    def context(self, image: str | None = None) -> ExecutionContext: ...
 
     def image_builder(self) -> ImageBuilder | None: ...
 
@@ -66,8 +58,8 @@ class LxdBackend:
     def availability(self) -> Availability:
         return _probe(["lxc", "info"])
 
-    def context(self) -> ExecutionContext:
-        return LxdContext()
+    def context(self, image: str | None = None) -> ExecutionContext:
+        return LxdContext(image or BASE_IMAGE)
 
     def image_builder(self) -> ImageBuilder:
         return LxdImageBuilder()
@@ -79,8 +71,8 @@ class DockerBackend:
     def availability(self) -> Availability:
         return _probe(["docker", "info"])
 
-    def context(self) -> ExecutionContext:
-        return DockerContext()
+    def context(self, image: str | None = None) -> ExecutionContext:
+        return DockerContext(image or BASE_IMAGE)
 
     def image_builder(self) -> ImageBuilder:
         return DockerImageBuilder()
@@ -92,8 +84,8 @@ class LocalBackend:
     def availability(self) -> Availability:
         return Availability(ok=True, reason="runs on the host")
 
-    def context(self) -> ExecutionContext:
-        return LocalContext()
+    def context(self, image: str | None = None) -> ExecutionContext:
+        return LocalContext()  # runs on the host; there is no image
 
     def image_builder(self) -> None:
         return None  # tools install onto the host, not into an image
@@ -131,3 +123,17 @@ def select_backend(requested: str | None) -> Backend | Failure:
                 f"{availability.reason}"
             )
     return Failure(reason="no execution backend is available")
+
+
+def tool_context(backend: Backend) -> ExecutionContext | Failure:
+    """A context with the tools available. For local that is the host (tools live
+    there, installed by `bootstrap`). For a container backend it is a container
+    running the tool image, which is built on demand and hash-verified before use; a
+    build failure is returned as a Failure."""
+    builder = backend.image_builder()
+    if builder is None:
+        return backend.context()
+    reference = ensure_image(builder, build_spec(current_platform()))
+    if isinstance(reference, Failure):
+        return reference
+    return backend.context(reference)

@@ -1,4 +1,14 @@
-"""Tests for the shared image ensure step (repo_scanner.image.builder)."""
+"""Tests for the shared image ensure step (repo_scanner.image.builder).
+
+ensure_image is the trust boundary: it rebuilds unless the present image's hash
+matches the identity recorded at its last build. A fake builder scripts the present
+identity and build result; the identity cache is isolated to a temp XDG_DATA_HOME.
+"""
+
+import os
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from repo_scanner.image.build_spec import BuildSpec
 from repo_scanner.image.builder import ensure_image
@@ -6,35 +16,63 @@ from repo_scanner.image.builder import ensure_image
 _SPEC = BuildSpec("ubuntu:24.04", "/opt/reposcan", "#!/bin/sh\ntrue\n")
 
 
+@contextmanager
+def _isolated_cache() -> Iterator[None]:
+    saved = os.environ.get("XDG_DATA_HOME")
+    with tempfile.TemporaryDirectory() as tmp:
+        os.environ["XDG_DATA_HOME"] = tmp
+        try:
+            yield
+        finally:
+            if saved is None:
+                os.environ.pop("XDG_DATA_HOME", None)
+            else:
+                os.environ["XDG_DATA_HOME"] = saved
+
+
 class _FakeBuilder:
-    """An ImageBuilder that records whether build() ran, without touching a daemon."""
+    """An ImageBuilder whose present identity and builds are scripted. A build makes
+    the image report identity "built-id"."""
 
     name = "fake"
 
-    def __init__(self, *, present: bool) -> None:
-        self._present = present
-        self.built = False
+    def __init__(self, *, identity: str | None) -> None:
+        self._id = identity  # identity currently reported, None if absent
+        self.builds = 0
 
     def reference(self, spec: BuildSpec) -> str:
         return "img:abc"
 
-    def exists(self, reference: str) -> bool:
-        return self._present
+    def identity(self, reference: str) -> str | None:
+        return self._id
 
     def build(self, spec: BuildSpec) -> str:
-        self.built = True
+        self.builds += 1
+        self._id = "built-id"
         return "img:abc"
 
 
-def test_ensure_builds_only_when_missing_or_forced() -> None:
-    present = _FakeBuilder(present=True)
-    assert ensure_image(present, _SPEC) == "img:abc"
-    assert not present.built  # reused, build skipped
+def test_a_missing_image_is_built_recorded_and_then_reused() -> None:
+    with _isolated_cache():
+        builder = _FakeBuilder(identity=None)
+        assert ensure_image(builder, _SPEC) == "img:abc"
+        assert builder.builds == 1  # built because absent, identity recorded
+        assert ensure_image(builder, _SPEC) == "img:abc"
+        assert builder.builds == 1  # verified against the record, reused
 
-    missing = _FakeBuilder(present=False)
-    assert ensure_image(missing, _SPEC) == "img:abc"
-    assert missing.built  # built because absent
 
-    forced = _FakeBuilder(present=True)
-    assert ensure_image(forced, _SPEC, force=True) == "img:abc"
-    assert forced.built  # forced past the existence check
+def test_an_image_that_fails_verification_is_rebuilt() -> None:
+    with _isolated_cache():
+        builder = _FakeBuilder(identity=None)
+        ensure_image(builder, _SPEC)  # builds, records "built-id"
+        builder._id = "tampered"  # image now reports a different hash
+        assert ensure_image(builder, _SPEC) == "img:abc"
+        assert builder.builds == 2  # rebuilt: present hash != recorded identity
+
+
+def test_force_rebuilds_even_a_verified_image() -> None:
+    with _isolated_cache():
+        builder = _FakeBuilder(identity=None)
+        ensure_image(builder, _SPEC)  # builds + records; now verifiable
+        assert ensure_image(builder, _SPEC, force=True) == "img:abc"
+        assert builder.builds == 2

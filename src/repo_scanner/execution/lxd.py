@@ -10,16 +10,17 @@ from repo_scanner.execution.process import ExecResult, Failure, run_process
 
 logger = logging.getLogger(__name__)
 
-_IMAGE = "ubuntu:24.04"
 _BRIDGE = "lxdbr0"
 
 
 class LxdContext:
-    """Runs commands in an ephemeral `ubuntu:24.04` container via `lxc`."""
+    """Runs commands in an ephemeral container via `lxc`, launched from `image`
+    (a stock base for plain runs, or the tool image for scans)."""
 
     name = "lxd"
 
-    def __init__(self) -> None:
+    def __init__(self, image: str) -> None:
+        self._image = image
         self._instance_name: str | None = None
 
     def start(self) -> Failure | None:
@@ -27,7 +28,7 @@ class LxdContext:
         if warning is not None:
             logger.warning(warning)
         handle = f"reposcan-{os.getpid()}"
-        result = run_process(["lxc", "launch", _IMAGE, handle, "--ephemeral"])
+        result = run_process(["lxc", "launch", self._image, handle, "--ephemeral"])
         if isinstance(result, Failure):
             return result
         if result.exit_code != 0:

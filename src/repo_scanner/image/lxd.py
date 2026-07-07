@@ -22,9 +22,15 @@ class LxdImageBuilder:
     def reference(self, spec: BuildSpec) -> str:
         return f"{NAME}-{spec.short_digest}"
 
-    def exists(self, reference: str) -> bool:
+    def identity(self, reference: str) -> str | None:
+        # The image fingerprint (a sha256) is LXD's content hash of the image.
         result = run_process(["lxc", "image", "info", reference], timeout=30)
-        return isinstance(result, ExecResult) and result.exit_code == 0
+        if not (isinstance(result, ExecResult) and result.exit_code == 0):
+            return None
+        for line in result.stdout.splitlines():
+            if line.strip().startswith("Fingerprint:"):
+                return line.split(":", 1)[1].strip() or None
+        return None
 
     def build(self, spec: BuildSpec) -> str | Failure:
         # A build container is always deleted afterwards, success or not.

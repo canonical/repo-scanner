@@ -5,20 +5,20 @@ from collections.abc import Mapping, Sequence
 
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 
-_IMAGE = "ubuntu:24.04"
-
 
 class DockerContext:
-    """Runs commands in an ephemeral `ubuntu:24.04` container via `docker`."""
+    """Runs commands in an ephemeral container via `docker`, started from `image`
+    (a stock base for plain runs, or the tool image for scans)."""
 
     name = "docker"
 
-    def __init__(self) -> None:
+    def __init__(self, image: str) -> None:
+        self._image = image
         self._instance_name: str | None = None
 
     def start(self) -> Failure | None:
         result = run_process(
-            ["docker", "run", "-d", "--rm", _IMAGE, "sleep", "infinity"]
+            ["docker", "run", "-d", "--rm", self._image, "sleep", "infinity"]
         )
         if isinstance(result, Failure):
             return result

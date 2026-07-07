@@ -33,12 +33,13 @@ def _patched_run(result: ExecResult | Failure):
         lxd.run_process = saved
 
 
-def test_launches_an_ephemeral_container_and_execs_commands_in_it() -> None:
+def test_launches_the_given_image_and_execs_commands_in_it() -> None:
     with _patched_run(ExecResult(0, "", "")) as calls:
-        ctx = LxdContext()
+        ctx = LxdContext("reposcan-tools")
         assert ctx.start() is None
         assert ctx._instance_name is not None
         assert calls[-1][:2] == ["lxc", "launch"] and "--ephemeral" in calls[-1]
+        assert "reposcan-tools" in calls[-1]  # launched from the given image
         ctx.run(["ls"], cwd="/src", env={"K": "V"})
     name = ctx._instance_name
     expected = ["lxc", "exec", name, "--cwd", "/src", "--env", "K=V", "--", "ls"]

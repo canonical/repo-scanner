@@ -61,3 +61,12 @@ def test_build_deletes_the_builder_even_when_a_step_fails() -> None:
         result = _BUILDER.build(_SPEC)
     assert isinstance(result, Failure) and result.reason == "install failed"
     assert calls[-1][:2] == ["lxc", "delete"]
+
+
+def test_identity_parses_the_fingerprint_or_none_when_absent() -> None:
+    info = ExecResult(0, "Architecture: x86_64\nFingerprint: deadbeef\n", "")
+    with _patched(lambda argv: info) as calls:
+        assert _BUILDER.identity("reposcan-x") == "deadbeef"
+    assert calls[0][:3] == ["lxc", "image", "info"]
+    with _patched(lambda argv: ExecResult(1, "", "not found")):
+        assert _BUILDER.identity("reposcan-x") is None
