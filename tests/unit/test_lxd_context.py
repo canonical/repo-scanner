@@ -1,15 +1,14 @@
 """Tests for the LXD execution context (repo_scanner.execution.lxd).
 
-lxc is not invoked: the tests patch the module's run_process with a fake that
-records the CLI argv and returns a canned result.
+lxc is not invoked: run_process is patched with a fake that records the argv.
 """
 
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
 
 import repo_scanner.execution.lxd as lxd
-from repo_scanner.execution.context import ExecResult, Failure
 from repo_scanner.execution.lxd import LxdContext
+from repo_scanner.execution.process import ExecResult, Failure
 
 
 @contextmanager
@@ -34,33 +33,13 @@ def _patched_run(result: ExecResult | Failure):
         lxd.run_process = saved
 
 
-def test_available_when_lxc_info_succeeds() -> None:
-    with _patched_run(ExecResult(0, "", "")):
-        assert LxdContext().availability().ok
-
-
-def test_start_launches_an_ephemeral_container() -> None:
+def test_launches_an_ephemeral_container_and_execs_commands_in_it() -> None:
     with _patched_run(ExecResult(0, "", "")) as calls:
         ctx = LxdContext()
         assert ctx.start() is None
         assert ctx._instance_name is not None
-    assert calls[-1][:2] == ["lxc", "launch"]
-    assert "--ephemeral" in calls[-1]
-
-
-def test_run_execs_in_the_started_container() -> None:
-    with _patched_run(ExecResult(0, "", "")) as calls:
-        ctx = LxdContext()
-        ctx._instance_name = "reposcan-1"
+        assert calls[-1][:2] == ["lxc", "launch"] and "--ephemeral" in calls[-1]
         ctx.run(["ls"], cwd="/src", env={"K": "V"})
-    assert calls[-1] == [
-        "lxc",
-        "exec",
-        "reposcan-1",
-        "--cwd",
-        "/src",
-        "--env",
-        "K=V",
-        "--",
-        "ls",
-    ]
+    name = ctx._instance_name
+    expected = ["lxc", "exec", name, "--cwd", "/src", "--env", "K=V", "--", "ls"]
+    assert calls[-1] == expected

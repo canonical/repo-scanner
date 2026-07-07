@@ -4,7 +4,8 @@ context. Only the local context exists so far."""
 import logging
 import sys
 
-from repo_scanner.execution.context import ExecutionContext, Failure
+from repo_scanner.execution.context import ExecutionContext
+from repo_scanner.execution.process import Failure
 
 logger = logging.getLogger(__name__)
 

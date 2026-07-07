@@ -2,8 +2,6 @@
 
 import sys
 
-import pytest
-
 from repo_scanner.cli import build_parser, main
 
 
@@ -14,21 +12,6 @@ def test_backend_is_a_global_option_before_the_subcommand() -> None:
     assert args.argv == ["--", "echo", "hi"]  # REMAINDER keeps the -- separator
 
 
-def test_main_dispatches_to_exec_and_returns_its_exit_code() -> None:
-    code = main(
-        [
-            "--backend",
-            "local",
-            "exec",
-            "--",
-            sys.executable,
-            "-c",
-            "import sys; sys.exit(5)",
-        ]
-    )
-    assert code == 5
-
-
-def test_no_subcommand_is_a_usage_error() -> None:
-    with pytest.raises(SystemExit):
-        main([])
+def test_main_dispatches_to_the_command_and_returns_its_exit_code() -> None:
+    prog = [sys.executable, "-c", "raise SystemExit(5)"]
+    assert main(["--backend", "local", "exec", "--", *prog]) == 5

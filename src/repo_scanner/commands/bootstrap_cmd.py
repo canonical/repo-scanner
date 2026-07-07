@@ -5,7 +5,8 @@ automatically."""
 
 import logging
 
-from repo_scanner.execution.context import ExecutionContext, Failure
+from repo_scanner.execution.context import ExecutionContext
+from repo_scanner.execution.process import Failure
 from repo_scanner.tools.install import install_plan
 from repo_scanner.tools.model import Platform, Tool
 from repo_scanner.tools.registry import TOOLS

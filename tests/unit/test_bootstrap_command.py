@@ -9,7 +9,7 @@ import logging
 from collections.abc import Mapping, Sequence
 
 from repo_scanner.commands.bootstrap_cmd import run_bootstrap
-from repo_scanner.execution.context import Availability, ExecResult, Failure
+from repo_scanner.execution.process import ExecResult, Failure
 from repo_scanner.tools.model import Platform
 
 _LINUX = Platform("linux", "amd64")
@@ -25,9 +25,6 @@ class _FakeContext:
     def __init__(self, fail_on: str | None = None) -> None:
         self.scripts: list[str] = []
         self._fail_on = fail_on
-
-    def availability(self) -> Availability:
-        return Availability(ok=True)
 
     def start(self) -> Failure | None:
         return None

@@ -2,17 +2,12 @@
 
 import sys
 
-from repo_scanner.execution.context import ExecResult, Failure
-from repo_scanner.execution.process import run_process
+from repo_scanner.execution.process import ExecResult, Failure, run_process
 
 
 def test_captures_stdout_stderr_and_exit_code() -> None:
     result = run_process(
-        [
-            sys.executable,
-            "-c",
-            "import sys; print('o'); sys.stderr.write('e'); sys.exit(3)",
-        ]
+        [sys.executable, "-c", "import sys; print('o'); sys.stderr.write('e'); exit(3)"]
     )
     assert isinstance(result, ExecResult)
     assert result.stdout.strip() == "o"
@@ -20,19 +15,17 @@ def test_captures_stdout_stderr_and_exit_code() -> None:
     assert result.exit_code == 3
 
 
-def test_empty_command_is_a_failure() -> None:
-    assert isinstance(run_process([]), Failure)
+def test_check_turns_a_nonzero_exit_into_a_failure() -> None:
+    ok = run_process([sys.executable, "-c", ""], check=True)
+    assert isinstance(ok, ExecResult) and ok.exit_code == 0
+    bad = run_process([sys.executable, "-c", "raise SystemExit(3)"], check=True)
+    assert isinstance(bad, Failure)
 
 
-def test_missing_command_is_a_failure() -> None:
-    result = run_process(["reposcan-no-such-binary-xyz"])
-    assert isinstance(result, Failure)
-    assert not result.timed_out
-
-
-def test_timeout_is_a_failure() -> None:
-    result = run_process(
-        [sys.executable, "-c", "import time; time.sleep(5)"], timeout=0.5
-    )
-    assert isinstance(result, Failure)
-    assert result.timed_out
+def test_the_ways_a_run_can_fail_become_failures() -> None:
+    assert isinstance(run_process([]), Failure)  # no command
+    missing = run_process(["reposcan-no-such-binary-xyz"])
+    assert isinstance(missing, Failure) and not missing.timed_out
+    sleep = [sys.executable, "-c", "import time; time.sleep(5)"]
+    slow = run_process(sleep, timeout=0.5)
+    assert isinstance(slow, Failure) and slow.timed_out

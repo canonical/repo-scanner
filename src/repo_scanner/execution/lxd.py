@@ -5,9 +5,8 @@ import logging
 import os
 from collections.abc import Mapping, Sequence
 
-from repo_scanner.execution.context import Availability, ExecResult, Failure
 from repo_scanner.execution.firewall import firewall_warning
-from repo_scanner.execution.process import run_process
+from repo_scanner.execution.process import ExecResult, Failure, run_process
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +21,6 @@ class LxdContext:
 
     def __init__(self) -> None:
         self._instance_name: str | None = None
-
-    def availability(self) -> Availability:
-        result = run_process(["lxc", "info"], timeout=10)
-        if isinstance(result, Failure):
-            return Availability(ok=False, reason=result.reason)
-        if result.exit_code != 0:
-            reason = result.stderr.strip() or "lxd is not available"
-            return Availability(ok=False, reason=reason)
-        return Availability(ok=True)
 
     def start(self) -> Failure | None:
         warning = firewall_warning(_BRIDGE)

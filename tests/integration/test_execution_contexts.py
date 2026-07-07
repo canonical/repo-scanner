@@ -13,9 +13,9 @@ first run, so the first lxd test can be slow.
 
 import pytest
 
-from repo_scanner.execution.context import ExecResult, ExecutionContext, Failure
-from repo_scanner.execution.docker import DockerContext
-from repo_scanner.execution.lxd import LxdContext
+from repo_scanner.backends import DockerBackend, LxdBackend
+from repo_scanner.execution.context import ExecutionContext
+from repo_scanner.execution.process import ExecResult, Failure
 
 
 def _exercise_lifecycle(ctx: ExecutionContext) -> None:
@@ -44,11 +44,12 @@ def _exercise_lifecycle(ctx: ExecutionContext) -> None:
 
 
 def test_docker_context_lifecycle() -> None:
-    ctx = DockerContext()
-    availability = ctx.availability()
+    backend = DockerBackend()
+    availability = backend.availability()
     if not availability.ok:
         pytest.skip(f"docker unavailable: {availability.reason}")
 
+    ctx = backend.context()
     started = ctx.start()
     assert started is None, f"docker run failed: {started}"
     try:
@@ -61,11 +62,12 @@ def test_docker_context_lifecycle() -> None:
 
 
 def test_lxd_context_lifecycle() -> None:
-    ctx = LxdContext()
-    availability = ctx.availability()
+    backend = LxdBackend()
+    availability = backend.availability()
     if not availability.ok:
         pytest.skip(f"lxd unavailable: {availability.reason}")
 
+    ctx = backend.context()
     started = ctx.start()
     # If this fails right after launch, the container may not be ready to exec yet
     # and LxdContext.start would need a readiness wait.

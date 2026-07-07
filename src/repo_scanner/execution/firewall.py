@@ -14,8 +14,7 @@ See: https://documentation.ubuntu.com/lxd/latest/howto/network_bridge_firewalld/
 import json
 from typing import Any
 
-from repo_scanner.execution.context import ExecResult
-from repo_scanner.execution.process import run_process
+from repo_scanner.execution.process import ExecResult, run_process
 
 _DOC = "https://documentation.ubuntu.com/lxd/latest/howto/network_bridge_firewalld/"
 

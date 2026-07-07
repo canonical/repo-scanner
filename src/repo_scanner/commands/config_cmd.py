@@ -4,12 +4,12 @@ import logging
 import sys
 
 from repo_scanner import config
-from repo_scanner.execution.select import BACKENDS
+from repo_scanner.backends import BACKEND_NAMES
 
 logger = logging.getLogger(__name__)
 
 # Config keys reposcan understands, with the values each accepts.
-_ALLOWED_VALUES = {"backend": BACKENDS}
+_ALLOWED_VALUES = {"backend": BACKEND_NAMES}
 
 
 def set_value(key: str, value: str) -> int:

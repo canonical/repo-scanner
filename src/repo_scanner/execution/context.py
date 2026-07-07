@@ -12,47 +12,17 @@ be started or timed out.
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from typing import Protocol
 
-
-@dataclass(frozen=True)
-class ExecResult:
-    """The outcome of a command that ran to completion (any exit code)."""
-
-    exit_code: int
-    stdout: str
-    stderr: str
-
-    @property
-    def ok(self) -> bool:
-        return self.exit_code == 0
-
-
-@dataclass(frozen=True)
-class Failure:
-    """An operation that did not complete: a context that could not be started, or
-    a command that could not be started or exceeded its timeout. `reason` is
-    human-readable."""
-
-    reason: str
-    timed_out: bool = False
-
-
-@dataclass(frozen=True)
-class Availability:
-    """Whether a context is usable on this host, with a reason to show the user."""
-
-    ok: bool
-    reason: str = ""
+from repo_scanner.execution.process import ExecResult, Failure
 
 
 class ExecutionContext(Protocol):
-    """A place reposcan can run commands: the local host, or an ephemeral container."""
+    """A place reposcan can run commands: the local host, or an ephemeral container.
+    Whether the backend is available is decided before a context is made (see
+    backends.py), so a context is just a lifecycle: start(), run(), stop()."""
 
     name: str
-
-    def availability(self) -> Availability: ...
 
     def start(self) -> Failure | None: ...
 

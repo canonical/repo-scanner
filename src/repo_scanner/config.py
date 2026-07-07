@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from repo_scanner.execution.context import Failure
+from repo_scanner.execution.process import Failure
 
 logger = logging.getLogger(__name__)
 

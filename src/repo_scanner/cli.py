@@ -3,16 +3,16 @@
 import argparse
 import logging
 
+from repo_scanner.backends import BACKEND_NAMES, select_backend
 from repo_scanner.commands import (
     bootstrap_cmd,
     config_cmd,
     exec_cmd,
+    image_cmd,
     invoke_cmd,
     tools_cmd,
 )
-from repo_scanner.execution.context import Failure
-from repo_scanner.execution.local import LocalContext
-from repo_scanner.execution.select import BACKENDS, select_context
+from repo_scanner.execution.process import Failure
 from repo_scanner.paths import tools_root
 from repo_scanner.tools.install import current_platform
 
@@ -28,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     # GLOBAL OPTIONS
     parser.add_argument(
         "--backend",
-        choices=BACKENDS,
+        choices=BACKEND_NAMES,
         default=None,
         help="Execution backend to run in. Overrides $REPOSCAN_BACKEND and the "
         "saved config; if unset, falls back to those, then to auto.",
@@ -94,6 +94,22 @@ def build_parser() -> argparse.ArgumentParser:
         "a double-hyphen, e.g. reposcan invoke semgrep -- --config auto .",
     )
 
+    # SUBCOMMAND: IMAGE
+    image_parser = subcommands.add_parser(
+        "image", help="Build container images with the tools baked in."
+    )
+    image_sub = image_parser.add_subparsers(dest="image_command", required=True)
+    image_build = image_sub.add_parser(
+        "build",
+        help="Build the tool image on demand for the selected backend (docker or "
+        "lxd); reused if already built.",
+    )
+    image_build.add_argument(
+        "--force",
+        action="store_true",
+        help="Rebuild even if an image for this spec already exists.",
+    )
+
     # SUBCOMMAND: CONFIG
     config_parser = subcommands.add_parser(
         "config", help="Get or set persistent configuration."
@@ -135,10 +151,11 @@ def main(argv: list[str] | None = None) -> int:
             return config_cmd.get_value(args.key)
         case "exec":
             # main owns the context lifecycle; the command only runs in it.
-            ctx = select_context(args.backend)
-            if isinstance(ctx, Failure):
-                logger.error(ctx.reason)
+            backend = select_backend(args.backend)
+            if isinstance(backend, Failure):
+                logger.error(backend.reason)
                 return 2
+            ctx = backend.context()
             error = ctx.start()
             if error is not None:
                 logger.error(error.reason)
@@ -152,15 +169,27 @@ def main(argv: list[str] | None = None) -> int:
         case "tools":
             # A local catalog listing; no execution context needed.
             return tools_cmd.run_tools(str(tools_root()))
+        case "image":
+            if args.image_command != "build":
+                logger.error("Unrecognized image command; try '--help'")
+                return 2
+            backend = select_backend(args.backend)
+            if isinstance(backend, Failure):
+                logger.error(backend.reason)
+                return 2
+            builder = backend.image_builder()
+            if builder is None:
+                logger.error("the %s backend cannot build images", backend.name)
+                return 2
+            return image_cmd.run_image_build(builder, force=args.force)
         case "bootstrap":
             # Tools install onto the host to be useful, so default to local; an
             # explicit --backend can still target a container.
-            ctx = (
-                LocalContext() if args.backend is None else select_context(args.backend)
-            )
-            if isinstance(ctx, Failure):
-                logger.error(ctx.reason)
+            backend = select_backend(args.backend or "local")
+            if isinstance(backend, Failure):
+                logger.error(backend.reason)
                 return 2
+            ctx = backend.context()
             error = ctx.start()
             if error is not None:
                 logger.error(error.reason)
@@ -172,10 +201,11 @@ def main(argv: list[str] | None = None) -> int:
             finally:
                 ctx.stop()
         case "invoke":
-            ctx = select_context(args.backend)
-            if isinstance(ctx, Failure):
-                logger.error(ctx.reason)
+            backend = select_backend(args.backend)
+            if isinstance(backend, Failure):
+                logger.error(backend.reason)
                 return 2
+            ctx = backend.context()
             error = ctx.start()
             if error is not None:
                 logger.error(error.reason)

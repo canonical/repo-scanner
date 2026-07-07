@@ -3,8 +3,7 @@ docker CLI (no SDK)."""
 
 from collections.abc import Mapping, Sequence
 
-from repo_scanner.execution.context import Availability, ExecResult, Failure
-from repo_scanner.execution.process import run_process
+from repo_scanner.execution.process import ExecResult, Failure, run_process
 
 _IMAGE = "ubuntu:24.04"
 
@@ -16,15 +15,6 @@ class DockerContext:
 
     def __init__(self) -> None:
         self._instance_name: str | None = None
-
-    def availability(self) -> Availability:
-        result = run_process(["docker", "info"], timeout=10)
-        if isinstance(result, Failure):
-            return Availability(ok=False, reason=result.reason)
-        if result.exit_code != 0:
-            reason = result.stderr.strip() or "docker is not available"
-            return Availability(ok=False, reason=reason)
-        return Availability(ok=True)
 
     def start(self) -> Failure | None:
         result = run_process(

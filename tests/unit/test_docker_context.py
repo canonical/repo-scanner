@@ -1,15 +1,14 @@
 """Tests for the Docker execution context (repo_scanner.execution.docker).
 
-docker is not invoked: the tests patch the module's run_process with a fake that
-records the CLI argv and returns a canned result.
+docker is not invoked: run_process is patched with a fake that records the argv.
 """
 
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
 
 import repo_scanner.execution.docker as docker
-from repo_scanner.execution.context import ExecResult, Failure
 from repo_scanner.execution.docker import DockerContext
+from repo_scanner.execution.process import ExecResult, Failure
 
 
 @contextmanager
@@ -34,41 +33,11 @@ def _patched_run(result: ExecResult | Failure):
         docker.run_process = saved
 
 
-def test_available_when_docker_info_succeeds() -> None:
-    with _patched_run(ExecResult(0, "", "")):
-        assert DockerContext().availability().ok
-
-
-def test_unavailable_reports_a_reason() -> None:
-    with _patched_run(Failure(reason="command not found: docker")):
-        missing = DockerContext().availability()
-    assert not missing.ok and "docker" in missing.reason
-
-    with _patched_run(ExecResult(1, "", "Cannot connect to the Docker daemon")):
-        down = DockerContext().availability()
-    assert not down.ok and "daemon" in down.reason
-
-
-def test_start_captures_the_container_id() -> None:
-    with _patched_run(ExecResult(0, "abc123\n", "")):
+def test_starts_a_container_and_execs_commands_in_it() -> None:
+    with _patched_run(ExecResult(0, "abc123\n", "")) as calls:
         ctx = DockerContext()
         assert ctx.start() is None
-    assert ctx._instance_name == "abc123"
-
-
-def test_run_execs_in_the_started_container() -> None:
-    with _patched_run(ExecResult(0, "", "")) as calls:
-        ctx = DockerContext()
-        ctx._instance_name = "abc123"
+        assert ctx._instance_name == "abc123"  # container id from `docker run`
         ctx.run(["ls", "-a"], cwd="/src", env={"K": "V"})
-    assert calls[-1] == [
-        "docker",
-        "exec",
-        "-w",
-        "/src",
-        "-e",
-        "K=V",
-        "abc123",
-        "ls",
-        "-a",
-    ]
+    expected = ["docker", "exec", "-w", "/src", "-e", "K=V", "abc123", "ls", "-a"]
+    assert calls[-1] == expected

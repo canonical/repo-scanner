@@ -4,7 +4,8 @@ import logging
 import os
 import sys
 
-from repo_scanner.execution.context import ExecutionContext, Failure
+from repo_scanner.execution.context import ExecutionContext
+from repo_scanner.execution.process import Failure
 from repo_scanner.tools.registry import TOOLS
 
 logger = logging.getLogger(__name__)

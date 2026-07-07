@@ -2,12 +2,8 @@
 
 import sys
 
-from repo_scanner.execution.context import ExecResult
 from repo_scanner.execution.local import LocalContext
-
-
-def test_is_always_available() -> None:
-    assert LocalContext().availability().ok
+from repo_scanner.execution.process import ExecResult
 
 
 def test_run_executes_on_the_host_with_env_overlaid() -> None:
