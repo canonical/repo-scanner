@@ -1,16 +1,42 @@
 """LXD execution context: run commands in an ephemeral container via the lxc
 CLI (no SDK)."""
 
-import logging
 import os
 from collections.abc import Mapping, Sequence
 
-from repo_scanner.execution.firewall import firewall_warning
+from repo_scanner.execution.firewall import warn_if_lxd_bridge_blocked
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 
-logger = logging.getLogger(__name__)
+# The dedicated LXD project reposcan works in. Every instance- or image-acting lxc
+# command is pinned to it (the LXC prefix) so reposcan's ephemeral containers and its
+# built tool image never land in the user's default project.
+PROJECT = "reposcan"
+LXC = ["lxc", "--project", PROJECT]
 
-_BRIDGE = "lxdbr0"
+
+def ensure_project() -> Failure | None:
+    """Create reposcan's LXD project if it does not exist yet; a no-op once it does.
+    features.images=true keeps the built tool image inside this project rather than the
+    default one; features.profiles=false borrows the default project's profile so
+    containers still get its root disk and network and launch with no per-project setup.
+    Instances are isolated to the project regardless (that is what LXD projects do)."""
+    presence_check = run_process(["lxc", "project", "show", PROJECT])
+    if isinstance(presence_check, ExecResult) and presence_check.ok:
+        return None
+    created = run_process(
+        [
+            "lxc",
+            "project",
+            "create",
+            PROJECT,
+            "-c",
+            "features.images=true",
+            "-c",
+            "features.profiles=false",
+        ],
+        check=True,
+    )
+    return created if isinstance(created, Failure) else None
 
 
 class LxdContext:
@@ -24,11 +50,12 @@ class LxdContext:
         self._instance_name: str | None = None
 
     def start(self) -> Failure | None:
-        warning = firewall_warning(_BRIDGE)
-        if warning is not None:
-            logger.warning(warning)
+        warn_if_lxd_bridge_blocked()
+        project_creation_error = ensure_project()
+        if project_creation_error is not None:
+            return project_creation_error
         handle = f"reposcan-{os.getpid()}"
-        result = run_process(["lxc", "launch", self._image, handle, "--ephemeral"])
+        result = run_process([*LXC, "launch", self._image, handle, "--ephemeral"])
         if isinstance(result, Failure):
             return result
         if result.exit_code != 0:
@@ -46,7 +73,7 @@ class LxdContext:
     ) -> ExecResult | Failure:
         if self._instance_name is None:
             return Failure(reason="container is not started")
-        argv = ["lxc", "exec", self._instance_name]
+        argv = [*LXC, "exec", self._instance_name]
         if cwd is not None:
             argv += ["--cwd", cwd]
         for key, value in sorted((env or {}).items()):
@@ -56,5 +83,5 @@ class LxdContext:
 
     def stop(self) -> None:
         if self._instance_name is not None:
-            run_process(["lxc", "stop", self._instance_name])
+            run_process([*LXC, "stop", self._instance_name])
             self._instance_name = None

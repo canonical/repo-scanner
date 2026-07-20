@@ -1,3 +1,7 @@
+#######################################
+# PACKAGE                             #
+#######################################
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -20,44 +24,18 @@ reposcan = "repo_scanner.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/repo_scanner"]
 
-# Dev tooling is installed from the hashed, per-environment locks under
-# requirements/ (compiled with `uv pip compile --universal --generate-hashes`).
-# Day-to-day checks run via tox; if tox is not installed, run without installing
-# anything first: `uvx --with tox-uv tox run`.
-
-[tool.ruff]
-target-version = "py310"
-src = ["src", "tests"]
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
-
-[tool.basedpyright]
-include = ["src", "tests"]
-pythonVersion = "3.10"
-typeCheckingMode = "standard"
-
-[tool.pytest.ini_options]
-testpaths = ["tests/unit"]
-addopts = "-v"
+#######################################
+# TOX/TEST CONFIG                     #
+#######################################
 
 [tool.tox]
-requires = ["tox>=4.22", "tox-uv>=1"]
-env_list = ["py310", "py312", "py314", "lint", "type"]
+# tox>=4.46 is necessary for the integration-py310/py312/py314 factor-resolution.
+requires = ["tox>=4.46", "tox-uv>=1"]
+env_list = [
+  "unit-py310", "unit-py312", "unit-py314",
+  "lint", "type"
+]
 
-# Version matrix (py310/py312/py314): install the package and run the unit tests.
-[tool.tox.env_run_base]
-description = "Run unit tests"
-deps = ["-r{tox_root}/requirements/test.txt"]
-# Recreate each run: tox tracks installs in an internal journal, not the env's
-# real contents, so an interrupted run can leave a venv missing pytest that later
-# runs reuse and fail on. uv makes the rebuild near-free.
-recreate = true
-commands = [["pytest", { replace = "posargs", default = [], extend = true }]]
-
-# XDG_CACHE_HOME / XDG_CONFIG_HOME: isolated, empty per-env dirs so the unit tests
-# never resolve real bootstrap-installed tools or read a developer's saved config.
-# Keeps them hermetic. PYTHONUNBUFFERED: stream per-test output live under tox's pipe.
 [tool.tox.env_run_base.set_env]
 PYTHONUNBUFFERED = "1"
 XDG_CACHE_HOME = "{env_tmp_dir}/xdg-cache"
@@ -83,18 +61,41 @@ deps = [
 ]
 commands = [["basedpyright", "{tox_root}/src", "{tox_root}/tests"]]
 
-# Integration tests against real docker/lxd. Generated per Python target as
-# integration-py310/py312/py314, excluded from env_list (not run by default); run
-# them across the matrix with:
-#     tox run -f integration
-# Each generated env inherits the base test deps and package install, overrides the
-# command to target tests/integration, and passes through the environment the
-# docker/lxc clients need (HOME for the lxc client config, DOCKER_HOST /
-# XDG_RUNTIME_DIR for non-default or rootless sockets).
-[tool.tox.env_base.integration]
-description = "Integration tests against real docker/lxd"
+# Version matrix (py310/py312/py314): install the package and run the unit tests.
+[tool.tox.env_base.unit]
 factors = [["py310", "py312", "py314"]]
-commands = [
-    ["pytest", "{tox_root}/tests/integration", { replace = "posargs", default = [], extend = true }],
-]
+description = "Run unit tests"
+deps = ["-r{tox_root}/requirements/test.txt"]
+recreate = true  # Recreate tox env on each run
+commands = [["pytest", { replace = "posargs", default = [], extend = true }]]
+
+# run with `tox run -f integration` or `tox run -e integration-py310`
+[tool.tox.env_base.integration]
+factors = [["py310", "py312", "py314"]]
+description = "Integration tests against real docker/lxd"
+deps = ["-r{tox_root}/requirements/test.txt"]
+commands = [[
+  "pytest", "{tox_root}/tests/integration", "-s", "--log-cli-level=INFO",
+  { replace = "posargs", default = [], extend = true }
+]]
 pass_env = ["HOME", "DOCKER_HOST", "XDG_RUNTIME_DIR"]
+
+#######################################
+# TOOL CONFIG                         #
+#######################################
+
+[tool.ruff]
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.basedpyright]
+include = ["src", "tests"]
+pythonVersion = "3.10"
+typeCheckingMode = "standard"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+addopts = "-v"

@@ -3,7 +3,7 @@
 import argparse
 import logging
 
-from repo_scanner.backends import BACKEND_NAMES, select_backend, tool_context
+from repo_scanner.backends import BACKEND_NAMES, select_backend, start_session
 from repo_scanner.commands import (
     bootstrap_cmd,
     config_cmd,
@@ -137,94 +137,90 @@ class _LevelFormatter(logging.Formatter):
         return chosen.format(record)
 
 
+def _command_argv(argv: list[str]) -> list[str]:
+    """The passthrough command/args, dropping a leading '--' separator if present."""
+    return argv[1:] if argv and argv[0] == "--" else argv
+
+
+def _run_config(args: argparse.Namespace) -> int:
+    """Get or set a config value. Reads/writes a file only; no execution context."""
+    if args.config_command == "set":
+        return config_cmd.set_value(args.key, args.value)
+    return config_cmd.get_value(args.key)
+
+
+def _run_tools(args: argparse.Namespace) -> int:
+    """List the scanning tools and their install status on the host."""
+    return tools_cmd.run_tools(str(tools_root()))
+
+
+def _run_exec(args: argparse.Namespace) -> int:
+    """Run a command where the tools are: the tool image on a container backend."""
+    with start_session(args.backend, tool_image=True) as session:
+        if not session.ok:
+            return session.exit_code
+        return exec_cmd.run_exec(
+            session.context, _command_argv(args.argv), timeout=args.timeout
+        )
+
+
+def _run_invoke(args: argparse.Namespace) -> int:
+    """Run an installed tool in the tool environment, passing arguments through."""
+    with start_session(args.backend, tool_image=True) as session:
+        if not session.ok:
+            return session.exit_code
+        return invoke_cmd.run_invoke(
+            session.context,
+            args.tool,
+            _command_argv(args.argv),
+            session.tool_root,
+            timeout=args.timeout,
+        )
+
+
+def _run_bootstrap(args: argparse.Namespace) -> int:
+    """Install tools into a plain environment. Defaults to local (tools are useful on
+    the host); an explicit --backend installs into a plain container, not the image."""
+    with start_session(args.backend or "local", tool_image=False) as session:
+        if not session.ok:
+            return session.exit_code
+        return bootstrap_cmd.run_bootstrap(
+            session.context, args.tools, current_platform(), session.tool_root
+        )
+
+
+def _run_image(args: argparse.Namespace) -> int:
+    """Build the tool image on demand for a container backend (local cannot)."""
+    backend = select_backend(args.backend)
+    if isinstance(backend, Failure):
+        logger.error(backend.reason)
+        return 2
+    builder = backend.image_builder()
+    if builder is None:
+        logger.error("the %s backend cannot build images", backend.name)
+        return 2
+    return image_cmd.run_image_build(builder, force=args.force)
+
+
 def main(argv: list[str] | None = None) -> int:
     handler = logging.StreamHandler()
     handler.setFormatter(_LevelFormatter())
     logging.basicConfig(level=logging.INFO, handlers=[handler])
     args = build_parser().parse_args(argv)
 
+    # The parser guarantees args.command is one of these subcommands.
     match args.command:
         case "config":
-            # config reads/writes a file only; it needs no execution context.
-            if args.config_command == "set":
-                return config_cmd.set_value(args.key, args.value)
-            return config_cmd.get_value(args.key)
-        case "exec":
-            backend = select_backend(args.backend)
-            if isinstance(backend, Failure):
-                logger.error(backend.reason)
-                return 2
-            ctx = tool_context(backend)
-            if isinstance(ctx, Failure):
-                logger.error(ctx.reason)
-                return 1
-            error = ctx.start()
-            if error is not None:
-                logger.error(error.reason)
-                return 1
-            try:
-                # Drop the leading '--', if present.
-                cmd = args.argv[1:] if args.argv and args.argv[0] == "--" else args.argv
-                return exec_cmd.run_exec(ctx, cmd, timeout=args.timeout)
-            finally:
-                ctx.stop()
+            return _run_config(args)
         case "tools":
-            # A local catalog listing; no execution context needed.
-            return tools_cmd.run_tools(str(tools_root()))
-        case "image":
-            if args.image_command != "build":
-                logger.error("Unrecognized image command; try '--help'")
-                return 2
-            backend = select_backend(args.backend)
-            if isinstance(backend, Failure):
-                logger.error(backend.reason)
-                return 2
-            builder = backend.image_builder()
-            if builder is None:
-                logger.error("the %s backend cannot build images", backend.name)
-                return 2
-            return image_cmd.run_image_build(builder, force=args.force)
-        case "bootstrap":
-            # Tools install onto the host to be useful, so default to local; an
-            # explicit --backend can still target a container.
-            backend = select_backend(args.backend or "local")
-            if isinstance(backend, Failure):
-                logger.error(backend.reason)
-                return 2
-            ctx = backend.context()
-            error = ctx.start()
-            if error is not None:
-                logger.error(error.reason)
-                return 1
-            try:
-                return bootstrap_cmd.run_bootstrap(
-                    ctx, args.tools, current_platform(), str(tools_root())
-                )
-            finally:
-                ctx.stop()
+            return _run_tools(args)
+        case "exec":
+            return _run_exec(args)
         case "invoke":
-            backend = select_backend(args.backend)
-            if isinstance(backend, Failure):
-                logger.error(backend.reason)
-                return 2
-            ctx = tool_context(backend)
-            if isinstance(ctx, Failure):
-                logger.error(ctx.reason)
-                return 1
-            error = ctx.start()
-            if error is not None:
-                logger.error(error.reason)
-                return 1
-            try:
-                # Drop the leading '--', if present.
-                tool_args = (
-                    args.argv[1:] if args.argv and args.argv[0] == "--" else args.argv
-                )
-                return invoke_cmd.run_invoke(
-                    ctx, args.tool, tool_args, str(tools_root()), timeout=args.timeout
-                )
-            finally:
-                ctx.stop()
-        case _:
-            logger.error("Unrecognized command; try '--help'")
+            return _run_invoke(args)
+        case "bootstrap":
+            return _run_bootstrap(args)
+        case "image":
+            return _run_image(args)
+        case _:  # unreachable: the parser rejects any other command
             return 2

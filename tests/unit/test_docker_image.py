@@ -25,6 +25,7 @@ def _patched(result: ExecResult | Failure):
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
         check: bool = False,
+        stream: bool = False,
     ) -> ExecResult | Failure:
         calls.append(list(command))
         return result

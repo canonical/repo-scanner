@@ -16,11 +16,13 @@ from repo_scanner.backends import (
     DockerBackend,
     LocalBackend,
     select_backend,
+    start_session,
     tool_context,
 )
 from repo_scanner.execution.docker import DockerContext
 from repo_scanner.execution.local import LocalContext
 from repo_scanner.execution.process import ExecResult, Failure
+from repo_scanner.paths import tools_root
 
 
 @contextmanager
@@ -152,3 +154,17 @@ def test_tool_context_local_on_host_container_in_the_verified_image() -> None:
         assert isinstance(tool_context(DockerBackend()), Failure)
     finally:
         backends.ensure_image = saved
+
+
+def test_start_session_runs_on_the_started_context_with_its_tool_root() -> None:
+    # Local is always available and needs no image, so the session runs on the host.
+    with start_session("local", tool_image=True) as session:
+        assert session.ok and session.exit_code == 0
+        assert isinstance(session.context, LocalContext)
+        assert session.tool_root == str(tools_root())
+
+
+def test_start_session_reports_an_unusable_backend_as_not_ok() -> None:
+    with start_session("bogus", tool_image=True) as session:
+        assert not session.ok
+        assert session.exit_code == 2  # backend could not be selected

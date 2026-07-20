@@ -1,7 +1,6 @@
 """The `reposcan invoke` command: run an installed tool, passing arguments through."""
 
 import logging
-import os
 import sys
 
 from repo_scanner.execution.context import ExecutionContext
@@ -30,7 +29,8 @@ def run_invoke(
         logger.error("unknown tool: %s", name)
         return 2
     executable = tool.installed_path(install_root)
-    if not os.path.exists(executable):
+    probe = ctx.run(["test", "-x", executable])
+    if isinstance(probe, Failure) or not probe.ok:
         logger.error("%s is not installed; run: reposcan bootstrap %s", name, name)
         return 1
 

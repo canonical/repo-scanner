@@ -40,5 +40,6 @@ class DockerImageBuilder:
         with tempfile.TemporaryDirectory() as context:
             Path(context, "install.sh").write_text(spec.script)
             Path(context, "Dockerfile").write_text(dockerfile)
-            result = run_process(["docker", "build", "-t", tag, context], check=True)
+            build = ["docker", "build", "-t", tag, context]
+            result = run_process(build, check=True, stream=True)
         return result if isinstance(result, Failure) else tag

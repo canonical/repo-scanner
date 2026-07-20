@@ -12,11 +12,24 @@ See: https://documentation.ubuntu.com/lxd/latest/howto/network_bridge_firewalld/
 """
 
 import json
+import logging
 from typing import Any
 
 from repo_scanner.execution.process import ExecResult, run_process
 
+logger = logging.getLogger(__name__)
+
 _DOC = "https://documentation.ubuntu.com/lxd/latest/howto/network_bridge_firewalld/"
+_LXD_BRIDGE = "lxdbr0"
+
+
+def warn_if_lxd_bridge_blocked(bridge: str = _LXD_BRIDGE) -> None:
+    """Log a warning if the host firewall blocks forwarding on the LXD bridge.
+    Advisory only. Call before every `lxc launch` -- both running a container and
+    building an image launch on the bridge and fail the same way when it is blocked."""
+    warning = firewall_warning(bridge)
+    if warning is not None:
+        logger.warning(warning)
 
 
 def firewall_warning(bridge: str) -> str | None:

@@ -4,18 +4,28 @@ Unlike the unit tests, these invoke real docker / lxc and start real ephemeral
 ubuntu:24.04 containers. They are excluded from the default unit run
 (`testpaths = ["tests/unit"]`); run them explicitly with:
 
-    pytest tests/integration
+    tox run -f integration      (across the py310/py312/py314 matrix)
+    OR
+    tox run -e integration-py310
+    OR
+    pytest tests/integration -s --log-cli-level=INFO
 
 Each test skips cleanly when its backend is unavailable, so this is safe to run
 on a host with only one (or neither) backend. The LXD image may be downloaded on
-first run, so the first lxd test can be slow.
+first run, so the first lxd test can be slow; progress is logged at INFO (the tox
+integration envs pass -s --log-cli-level=INFO so it shows live, or pass them to
+pytest yourself).
 """
+
+import logging
 
 import pytest
 
 from repo_scanner.backends import DockerBackend, LxdBackend
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import ExecResult, Failure
+
+logger = logging.getLogger(__name__)
 
 
 def _exercise_lifecycle(ctx: ExecutionContext) -> None:
@@ -49,6 +59,7 @@ def test_docker_context_lifecycle() -> None:
     if not availability.ok:
         pytest.skip(f"docker unavailable: {availability.reason}")
 
+    logger.info("[docker] starting ubuntu:24.04 container")
     ctx = backend.context()
     started = ctx.start()
     assert started is None, f"docker run failed: {started}"
@@ -67,6 +78,7 @@ def test_lxd_context_lifecycle() -> None:
     if not availability.ok:
         pytest.skip(f"lxd unavailable: {availability.reason}")
 
+    logger.info("[lxd] launching ubuntu:24.04 container (may download the image)")
     ctx = backend.context()
     started = ctx.start()
     # If this fails right after launch, the container may not be ready to exec yet

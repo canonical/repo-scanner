@@ -11,8 +11,11 @@ it succeeded.
 """
 
 import subprocess
+import sys
+import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import IO, TextIO
 
 
 @dataclass(frozen=True)
@@ -38,6 +41,31 @@ class Failure:
     timed_out: bool = False
 
 
+class _Tee:
+    """Drains one pipe into a buffer and -- when a live stream is given -- echoes every
+    line to it as it arrives (like `tee`). One instance handles one pipe; stdout and
+    stderr each get their own so that reading both concurrently (on separate threads)
+    never deadlocks on a full pipe buffer. A None live stream captures without
+    echoing."""
+
+    def __init__(self, source: IO[str], live: TextIO | None) -> None:
+        self._source = source
+        self._live = live
+        self._captured: list[str] = []
+
+    def drain(self) -> None:
+        """Read the source to EOF, buffering a copy and echoing each line if live."""
+        for line in self._source:
+            if self._live is not None:
+                self._live.write(line)
+                self._live.flush()
+            self._captured.append(line)
+
+    @property
+    def captured(self) -> str:
+        return "".join(self._captured)
+
+
 def run_process(
     command: Sequence[str],
     *,
@@ -45,27 +73,24 @@ def run_process(
     env: Mapping[str, str] | None = None,
     timeout: float | None = None,
     check: bool = False,
+    stream: bool = False,
 ) -> ExecResult | Failure:
     """Run `command`. Return an ExecResult if it ran, or a Failure if it could not be
     started or exceeded `timeout` (None means no limit). With `check`, a nonzero exit
-    is also a Failure, so a returned ExecResult has exited 0."""
+    is also a Failure, so a returned ExecResult has exited 0. With `stream`, the
+    command's output is also streamed to this process's console as it runs.
+    """
     argv = list(command)
     if not argv:
         return Failure(reason="no command given")
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             argv,
             cwd=cwd,
             env=dict(env) if env is not None else None,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as exc:
-        return Failure(
-            reason=f"timed out after {exc.timeout} seconds: {argv[0]}",
-            timed_out=True,
         )
     except FileNotFoundError:
         return Failure(reason=f"command not found: {argv[0]}")
@@ -73,11 +98,28 @@ def run_process(
         return Failure(reason=f"permission denied: {argv[0]}")
     except OSError as exc:
         return Failure(reason=f"could not start {argv[0]}: {exc}")
-    if check and completed.returncode != 0:
-        reason = completed.stderr.strip() or f"{argv[0]} exited {completed.returncode}"
+
+    assert process.stdout is not None and process.stderr is not None
+    out = _Tee(process.stdout, sys.stdout if stream else None)
+    err = _Tee(process.stderr, sys.stderr if stream else None)
+    readers = [threading.Thread(target=out.drain), threading.Thread(target=err.drain)]
+    for reader in readers:
+        reader.start()
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()  # closes the pipes, so the reader threads reach EOF and exit
+        process.wait()
+        for reader in readers:
+            reader.join()
+        return Failure(
+            reason=f"timed out after {timeout} seconds: {argv[0]}", timed_out=True
+        )
+    for reader in readers:
+        reader.join()
+    if check and process.returncode != 0:
+        reason = err.captured.strip() or f"{argv[0]} exited {process.returncode}"
         return Failure(reason=reason)
     return ExecResult(
-        exit_code=completed.returncode,
-        stdout=completed.stdout,
-        stderr=completed.stderr,
+        exit_code=process.returncode, stdout=out.captured, stderr=err.captured
     )

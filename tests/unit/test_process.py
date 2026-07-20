@@ -1,6 +1,8 @@
 """Tests for the subprocess runner (repo_scanner.execution.process)."""
 
+import io
 import sys
+from contextlib import redirect_stderr, redirect_stdout
 
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 
@@ -28,4 +30,30 @@ def test_the_ways_a_run_can_fail_become_failures() -> None:
     assert isinstance(missing, Failure) and not missing.timed_out
     sleep = [sys.executable, "-c", "import time; time.sleep(5)"]
     slow = run_process(sleep, timeout=0.5)
+    assert isinstance(slow, Failure) and slow.timed_out
+
+
+def test_stream_tees_output_to_the_console_and_still_captures_it() -> None:
+    # Streaming tees: the ExecResult captures stdout and stderr (kept separate) exactly
+    # as a plain run would, and the same output is echoed live to sys.stdout/sys.stderr.
+    program = "import sys; print('out'); sys.stderr.write('err\\n'); exit(4)"
+    live_out, live_err = io.StringIO(), io.StringIO()
+    with redirect_stdout(live_out), redirect_stderr(live_err):
+        result = run_process([sys.executable, "-c", program], stream=True)
+    assert isinstance(result, ExecResult)
+    assert result.exit_code == 4
+    assert result.stdout.strip() == "out"  # captured
+    assert result.stderr.strip() == "err"  # captured, separate from stdout
+    assert "out" in live_out.getvalue()  # echoed live to the console
+    assert "err" in live_err.getvalue()
+
+
+def test_stream_check_and_timeout_become_failures() -> None:
+    program = "import sys; sys.stderr.write('boom\\n'); raise SystemExit(3)"
+    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+        bad = run_process([sys.executable, "-c", program], check=True, stream=True)
+    # The reason is the captured stderr, even though it was also shown live.
+    assert isinstance(bad, Failure) and "boom" in bad.reason
+    sleep = [sys.executable, "-c", "import time; time.sleep(5)"]
+    slow = run_process(sleep, timeout=0.5, stream=True)
     assert isinstance(slow, Failure) and slow.timed_out

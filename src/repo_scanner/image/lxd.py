@@ -6,11 +6,16 @@ stopped container as an image aliased by the spec digest. See image/builder.py f
 the shared ensure step.
 """
 
+import logging
 import os
 import tempfile
 
+from repo_scanner.execution.firewall import warn_if_lxd_bridge_blocked
+from repo_scanner.execution.lxd import LXC, ensure_project
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 from repo_scanner.image.build_spec import NAME, BuildSpec
+
+logger = logging.getLogger(__name__)
 
 
 class LxdImageBuilder:
@@ -24,7 +29,7 @@ class LxdImageBuilder:
 
     def identity(self, reference: str) -> str | None:
         # The image fingerprint (a sha256) is LXD's content hash of the image.
-        result = run_process(["lxc", "image", "info", reference], timeout=30)
+        result = run_process([*LXC, "image", "info", reference], timeout=30)
         if not (isinstance(result, ExecResult) and result.exit_code == 0):
             return None
         for line in result.stdout.splitlines():
@@ -33,31 +38,78 @@ class LxdImageBuilder:
         return None
 
     def build(self, spec: BuildSpec) -> str | Failure:
+        # The build container launches on the LXD bridge and needs network to fetch
+        # packages and tools, so warn up front if the host firewall blocks it.
+        warn_if_lxd_bridge_blocked()
+        project_error = ensure_project()
+        if project_error is not None:
+            return project_error
         # A build container is always deleted afterwards, success or not.
         alias = self.reference(spec)
         handle = f"{NAME}-build-{os.getpid()}"
-        launched = run_process(["lxc", "launch", spec.base_image, handle], check=True)
+        launched = run_process([*LXC, "launch", spec.base_image, handle], check=True)
         if isinstance(launched, Failure):
             return launched
         error = self._provision(handle, spec, alias)
-        run_process(["lxc", "delete", handle, "--force"])  # remove the builder
+        run_process([*LXC, "delete", handle, "--force"])  # remove the builder
         return error if error is not None else alias
 
     def _provision(self, handle: str, spec: BuildSpec, alias: str) -> Failure | None:
-        """Wait for the build container's network, install the tools into it, then
-        stop and publish it under `alias`. Returns None or the first Failure."""
+        """Wait for the build container's network, abort early if it has none, then
+        install the tools into it and stop and publish it under `alias`. Returns None or
+        the first Failure."""
+        ready = run_process(
+            [*LXC, "exec", handle, "--", "cloud-init", "status", "--wait"],
+            check=True,
+            stream=True,
+        )
+        if isinstance(ready, Failure):
+            return ready
+        offline = _offline_reason(handle)
+        if offline is not None:
+            logger.error(offline.reason)
+            return offline
         with tempfile.NamedTemporaryFile("w", suffix=".sh") as script:
             script.write(spec.script)
             script.flush()
             steps = [
-                ["lxc", "exec", handle, "--", "cloud-init", "status", "--wait"],
-                ["lxc", "file", "push", script.name, f"{handle}/root/install.sh"],
-                ["lxc", "exec", handle, "--", "sh", "/root/install.sh"],
-                ["lxc", "stop", handle],
-                ["lxc", "publish", handle, "--alias", alias],
+                [*LXC, "file", "push", script.name, f"{handle}/root/install.sh"],
+                [*LXC, "exec", handle, "--", "sh", "/root/install.sh"],
+                [*LXC, "stop", handle],
+                [*LXC, "publish", handle, "--alias", alias],
             ]
             for argv in steps:
-                result = run_process(argv, check=True)
+                result = run_process(argv, check=True, stream=True)
                 if isinstance(result, Failure):
                     return result
         return None
+
+
+def _offline_reason(handle: str) -> Failure | None:
+    """A Failure if the build container cannot reach the internet, else None. Probes by
+    opening a TCP connection to github.com:443 from inside the container via bash's
+    /dev/tcp (bash is always present in the base image, unlike curl or wget); `timeout`
+    bounds a blocked bridge that would otherwise hang. The install needs github, PyPI,
+    and the apt mirrors, so no outbound network is fatal and worth catching in seconds
+    instead of a multi-minute download hang. A blocked lxdbr0 bridge -- one common cause
+    -- is called out separately by `warn_if_lxd_bridge_blocked` before the build."""
+    probe = run_process(
+        [
+            *LXC,
+            "exec",
+            handle,
+            "--",
+            "timeout",
+            "15",
+            "bash",
+            "-c",
+            "exec 3<>/dev/tcp/github.com/443",
+        ]
+    )
+    if isinstance(probe, ExecResult) and probe.ok:
+        return None
+    return Failure(
+        reason="build container has no outbound network access; the tool install must "
+        "reach github.com, PyPI, and the apt mirrors. Check the container's network, "
+        "DNS, and NAT, and the host firewall (see any lxdbr0 warning above)."
+    )

@@ -1,6 +1,9 @@
 """Execution/build backends: lxd, docker, local."""
 
+import logging
 import os
+from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -10,11 +13,14 @@ from repo_scanner.execution.docker import DockerContext
 from repo_scanner.execution.local import LocalContext
 from repo_scanner.execution.lxd import LxdContext
 from repo_scanner.execution.process import Failure, run_process
-from repo_scanner.image.build_spec import BASE_IMAGE, build_spec
+from repo_scanner.image.build_spec import BASE_IMAGE, INSTALL_ROOT, build_spec
 from repo_scanner.image.builder import ImageBuilder, ensure_image
 from repo_scanner.image.docker import DockerImageBuilder
 from repo_scanner.image.lxd import LxdImageBuilder
+from repo_scanner.paths import tools_root
 from repo_scanner.tools.install import current_platform
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -51,6 +57,11 @@ class Backend(Protocol):
 
     def image_builder(self) -> ImageBuilder | None: ...
 
+    def tool_root(self) -> str:
+        """Where tools live for this backend: the host tools dir for local, the image
+        install root for a container."""
+        ...
+
 
 class LxdBackend:
     name = "lxd"
@@ -63,6 +74,9 @@ class LxdBackend:
 
     def image_builder(self) -> ImageBuilder:
         return LxdImageBuilder()
+
+    def tool_root(self) -> str:
+        return INSTALL_ROOT
 
 
 class DockerBackend:
@@ -77,6 +91,9 @@ class DockerBackend:
     def image_builder(self) -> ImageBuilder:
         return DockerImageBuilder()
 
+    def tool_root(self) -> str:
+        return INSTALL_ROOT
+
 
 class LocalBackend:
     name = "local"
@@ -89,6 +106,9 @@ class LocalBackend:
 
     def image_builder(self) -> None:
         return None  # tools install onto the host, not into an image
+
+    def tool_root(self) -> str:
+        return str(tools_root())
 
 
 # Backends in selection-precedence order: containers preferred, local last.
@@ -137,3 +157,52 @@ def tool_context(backend: Backend) -> ExecutionContext | Failure:
     if isinstance(reference, Failure):
         return reference
     return backend.context(reference)
+
+
+@dataclass(frozen=True)
+class Session:
+    """A started place to run a command in: its context and where its tools live, or --
+    when not `ok` -- a failure exit code. `context` is valid only when `ok`; it is
+    stopped when the `start_session` block exits."""
+
+    _context: ExecutionContext | None
+    tool_root: str
+    exit_code: int
+
+    @property
+    def ok(self) -> bool:
+        return self.exit_code == 0
+
+    @property
+    def context(self) -> ExecutionContext:
+        assert self._context is not None  # valid only when ok
+        return self._context
+
+
+@contextmanager
+def start_session(
+    requested_backend: str | None, *, tool_image: bool
+) -> Generator[Session]:
+    """Select a backend and start a context in it. Use the verified tool image (built on
+    demand) when `tool_image`, else a plain container. Yields a session and stops it
+    on exit. A failed step yields a not-`ok` Session carrying the exit code: 2 when no
+    backend could be selected, 1 when the context could not be built or started."""
+    backend = select_backend(requested_backend)
+    if isinstance(backend, Failure):
+        logger.error(backend.reason)
+        yield Session(None, "", 2)
+        return
+    ctx = tool_context(backend) if tool_image else backend.context()
+    if isinstance(ctx, Failure):
+        logger.error(ctx.reason)
+        yield Session(None, "", 1)
+        return
+    error = ctx.start()
+    if error is not None:
+        logger.error(error.reason)
+        yield Session(None, "", 1)
+        return
+    try:
+        yield Session(ctx, backend.tool_root(), 0)
+    finally:
+        ctx.stop()
