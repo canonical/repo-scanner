@@ -10,7 +10,7 @@ import logging
 import os
 import tempfile
 
-from repo_scanner.execution.firewall import warn_if_lxd_bridge_blocked
+from repo_scanner.execution.firewall import lxd_bridge_hint
 from repo_scanner.execution.lxd import LXC, ensure_project
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 from repo_scanner.image.build_spec import NAME, BuildSpec
@@ -38,16 +38,15 @@ class LxdImageBuilder:
         return None
 
     def build(self, spec: BuildSpec) -> str | Failure:
-        # The build container launches on the LXD bridge and needs network to fetch
-        # packages and tools, so warn up front if the host firewall blocks it.
-        warn_if_lxd_bridge_blocked()
         project_error = ensure_project()
         if project_error is not None:
             return project_error
         # A build container is always deleted afterwards, success or not.
         alias = self.reference(spec)
         handle = f"{NAME}-build-{os.getpid()}"
-        launched = run_process([*LXC, "launch", spec.base_image, handle], check=True)
+        launched = run_process(
+            [*LXC, "launch", spec.base_image, handle], check=True, stream=True
+        )
         if isinstance(launched, Failure):
             return launched
         error = self._provision(handle, spec, alias)
@@ -91,8 +90,8 @@ def _offline_reason(handle: str) -> Failure | None:
     /dev/tcp (bash is always present in the base image, unlike curl or wget); `timeout`
     bounds a blocked bridge that would otherwise hang. The install needs github, PyPI,
     and the apt mirrors, so no outbound network is fatal and worth catching in seconds
-    instead of a multi-minute download hang. A blocked lxdbr0 bridge -- one common cause
-    -- is called out separately by `warn_if_lxd_bridge_blocked` before the build."""
+    instead of a multi-minute download hang. On failure it logs a firewall/bridge hint
+    (a blocked lxdbr0 bridge is the usual cause) before returning the Failure."""
     probe = run_process(
         [
             *LXC,
@@ -108,8 +107,11 @@ def _offline_reason(handle: str) -> Failure | None:
     )
     if isinstance(probe, ExecResult) and probe.ok:
         return None
+    # Confirmed offline: surface the likely firewall cause and its fix as a warning
+    # (this is the diagnostic that would otherwise never appear), then abort.
+    logger.warning(lxd_bridge_hint())
     return Failure(
         reason="build container has no outbound network access; the tool install must "
         "reach github.com, PyPI, and the apt mirrors. Check the container's network, "
-        "DNS, and NAT, and the host firewall (see any lxdbr0 warning above)."
+        "DNS, and NAT."
     )

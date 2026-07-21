@@ -42,11 +42,12 @@ class Failure:
 
 
 class _Tee:
-    """Drains one pipe into a buffer and -- when a live stream is given -- echoes every
-    line to it as it arrives (like `tee`). One instance handles one pipe; stdout and
-    stderr each get their own so that reading both concurrently (on separate threads)
-    never deadlocks on a full pipe buffer. A None live stream captures without
-    echoing."""
+    """Drains one pipe into a buffer and -- when a live stream is given -- echoes it to
+    that stream a character at a time (like `tee`), so output with no trailing newline
+    (prompts, progress bars) shows immediately instead of waiting for the line to end.
+    The capture stays line-oriented. One instance handles one pipe; stdout and stderr
+    each get their own so that reading both concurrently (on separate threads) never
+    deadlocks on a full pipe buffer. A None live stream captures without echoing."""
 
     def __init__(self, source: IO[str], live: TextIO | None) -> None:
         self._source = source
@@ -54,12 +55,22 @@ class _Tee:
         self._captured: list[str] = []
 
     def drain(self) -> None:
-        """Read the source to EOF, buffering a copy and echoing each line if live."""
-        for line in self._source:
+        """Read the source to EOF, echoing each character live (when a live stream is
+        set) and buffering the text as whole lines."""
+        line: list[str] = []
+        while True:
+            char = self._source.read(1)
+            if not char:  # EOF
+                break
             if self._live is not None:
-                self._live.write(line)
+                self._live.write(char)
                 self._live.flush()
-            self._captured.append(line)
+            line.append(char)
+            if char == "\n":
+                self._captured.append("".join(line))
+                line = []
+        if line:  # trailing text with no final newline
+            self._captured.append("".join(line))
 
     @property
     def captured(self) -> str:

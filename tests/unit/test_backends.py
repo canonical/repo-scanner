@@ -156,15 +156,12 @@ def test_tool_context_local_on_host_container_in_the_verified_image() -> None:
         backends.ensure_image = saved
 
 
-def test_start_session_runs_on_the_started_context_with_its_tool_root() -> None:
+def test_start_session_runs_on_the_started_context_or_reports_a_bad_backend() -> None:
     # Local is always available and needs no image, so the session runs on the host.
     with start_session("local", tool_image=True) as session:
         assert session.ok and session.exit_code == 0
         assert isinstance(session.context, LocalContext)
         assert session.tool_root == str(tools_root())
-
-
-def test_start_session_reports_an_unusable_backend_as_not_ok() -> None:
+    # An unusable backend yields a not-ok session carrying the exit code.
     with start_session("bogus", tool_image=True) as session:
-        assert not session.ok
-        assert session.exit_code == 2  # backend could not be selected
+        assert not session.ok and session.exit_code == 2

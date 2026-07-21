@@ -7,19 +7,15 @@ from contextlib import redirect_stderr, redirect_stdout
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 
 
-def test_captures_stdout_stderr_and_exit_code() -> None:
+def test_captures_output_exit_code_and_check() -> None:
     result = run_process(
         [sys.executable, "-c", "import sys; print('o'); sys.stderr.write('e'); exit(3)"]
     )
     assert isinstance(result, ExecResult)
-    assert result.stdout.strip() == "o"
-    assert "e" in result.stderr
+    assert result.stdout.strip() == "o" and "e" in result.stderr
     assert result.exit_code == 3
-
-
-def test_check_turns_a_nonzero_exit_into_a_failure() -> None:
-    ok = run_process([sys.executable, "-c", ""], check=True)
-    assert isinstance(ok, ExecResult) and ok.exit_code == 0
+    # check turns a nonzero exit into a Failure; a zero exit stays an ExecResult.
+    assert isinstance(run_process([sys.executable, "-c", ""], check=True), ExecResult)
     bad = run_process([sys.executable, "-c", "raise SystemExit(3)"], check=True)
     assert isinstance(bad, Failure)
 
@@ -33,27 +29,20 @@ def test_the_ways_a_run_can_fail_become_failures() -> None:
     assert isinstance(slow, Failure) and slow.timed_out
 
 
-def test_stream_tees_output_to_the_console_and_still_captures_it() -> None:
-    # Streaming tees: the ExecResult captures stdout and stderr (kept separate) exactly
-    # as a plain run would, and the same output is echoed live to sys.stdout/sys.stderr.
+def test_stream_tees_output_live_while_still_capturing_and_reporting_failures() -> None:
     program = "import sys; print('out'); sys.stderr.write('err\\n'); exit(4)"
     live_out, live_err = io.StringIO(), io.StringIO()
     with redirect_stdout(live_out), redirect_stderr(live_err):
         result = run_process([sys.executable, "-c", program], stream=True)
-    assert isinstance(result, ExecResult)
-    assert result.exit_code == 4
-    assert result.stdout.strip() == "out"  # captured
-    assert result.stderr.strip() == "err"  # captured, separate from stdout
-    assert "out" in live_out.getvalue()  # echoed live to the console
-    assert "err" in live_err.getvalue()
+    assert isinstance(result, ExecResult) and result.exit_code == 4
+    assert result.stdout.strip() == "out" and result.stderr.strip() == "err"  # captured
+    assert "out" in live_out.getvalue() and "err" in live_err.getvalue()  # echoed live
 
-
-def test_stream_check_and_timeout_become_failures() -> None:
-    program = "import sys; sys.stderr.write('boom\\n'); raise SystemExit(3)"
     with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-        bad = run_process([sys.executable, "-c", program], check=True, stream=True)
-    # The reason is the captured stderr, even though it was also shown live.
+        boom = "import sys; sys.stderr.write('boom\\n'); raise SystemExit(3)"
+        bad = run_process([sys.executable, "-c", boom], check=True, stream=True)
+        sleep = [sys.executable, "-c", "import time; time.sleep(5)"]
+        slow = run_process(sleep, timeout=0.5, stream=True)
+    # bad's reason is the captured stderr, even though it was also shown live.
     assert isinstance(bad, Failure) and "boom" in bad.reason
-    sleep = [sys.executable, "-c", "import time; time.sleep(5)"]
-    slow = run_process(sleep, timeout=0.5, stream=True)
     assert isinstance(slow, Failure) and slow.timed_out

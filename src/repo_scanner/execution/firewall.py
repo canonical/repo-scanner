@@ -32,6 +32,23 @@ def warn_if_lxd_bridge_blocked(bridge: str = _LXD_BRIDGE) -> None:
         logger.warning(warning)
 
 
+def lxd_bridge_hint(bridge: str = _LXD_BRIDGE) -> str:
+    """Firewall guidance to log when an LXD container has confirmed no outbound
+    network. Returns the specific cause-and-fix when the host firewall can be read and
+    shows `bridge` blocked; otherwise generic remediation -- reading nft/iptables needs
+    root privileges that we may not have, and a blocked FORWARD chain is the usual
+    culprit. Unlike `firewall_warning`, this never returns None: the caller already
+    knows there is a problem and always wants something actionable to show."""
+    detected = firewall_warning(bridge)
+    if detected is not None:
+        return detected
+    return (
+        f"a blocked {bridge} bridge is the usual cause; allow forwarding with: "
+        f"sudo nft insert rule ip filter FORWARD iifname {bridge} accept && "
+        f"sudo nft insert rule ip filter FORWARD oifname {bridge} accept (see {_DOC})"
+    )
+
+
 def firewall_warning(bridge: str) -> str | None:
     """A warning with a proposed fix if the host FORWARD policy drops `bridge`
     traffic, else None. Uses nftables when present, else iptables-legacy; None when
@@ -146,6 +163,7 @@ def _blocked_warning(bridge: str, cause: str, docker_fix: str) -> str:
             f"&& sudo ufw route allow out on {bridge} (see {_DOC})"
         )
     return (
-        f"{base}. To resolve, add firewall rules allowing forwarding through "
-        f"{bridge} (see {_DOC})"
+        f"{base}. To resolve, run: "
+        f"sudo nft insert rule ip filter FORWARD iifname {bridge} accept && "
+        f"sudo nft insert rule ip filter FORWARD oifname {bridge} accept (see {_DOC})"
     )

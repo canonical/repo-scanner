@@ -4,6 +4,7 @@ lxc is not invoked: run_process is patched with a fake that records the argv; it
 response is a callable so a specific step can be made to fail.
 """
 
+import logging
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager
 
@@ -32,16 +33,20 @@ def _patched(respond: Callable[[list[str]], ExecResult | Failure]):
         calls.append(list(command))
         return respond(list(command))
 
-    # ensure_project shells out to lxc through a different module, so stub it to a
-    # no-op here; its own behavior is covered in test_lxd_context.
-    saved_run, saved_ensure = lxd.run_process, lxd.ensure_project
+    # ensure_project and lxd_bridge_hint shell out to lxc/nft through other modules, so
+    # stub them here; their own behavior is covered in test_lxd_context / test_firewall.
+    saved_run = lxd.run_process
+    saved_ensure = lxd.ensure_project
+    saved_hint = lxd.lxd_bridge_hint
     lxd.run_process = fake
     lxd.ensure_project = lambda: None
+    lxd.lxd_bridge_hint = lambda: "check the lxdbr0 bridge firewall"
     try:
         yield calls
     finally:
         lxd.run_process = saved_run
         lxd.ensure_project = saved_ensure
+        lxd.lxd_bridge_hint = saved_hint
 
 
 # Every lxc command is pinned to reposcan's own project, not `default`.
@@ -72,19 +77,42 @@ def test_build_deletes_the_builder_even_when_a_step_fails() -> None:
     assert calls[-1][:4] == [*_LXC, "delete"]
 
 
-def test_build_aborts_early_when_the_container_has_no_network() -> None:
-    # The outbound-connectivity probe fails; the build must stop before running the
-    # install script (no multi-minute doomed download) and still delete the builder.
+class _RecordingHandler(logging.Handler):
+    """Collects the messages logged while it is attached."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.warnings: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if record.levelno == logging.WARNING:
+            self.warnings.append(record.getMessage())
+
+
+def test_build_aborts_early_and_warns_when_the_container_has_no_network() -> None:
+    """The outbound-connectivity probe fails; the build must stop before running the
+    install script (no multi-minute doomed download), warn about the firewall cause,
+    and still delete the builder."""
+
     def respond(argv: list[str]) -> ExecResult | Failure:
         if any("/dev/tcp" in arg for arg in argv):  # the connectivity probe
             return ExecResult(1, "", "Network is unreachable")
         return _OK
 
-    with _patched(respond) as calls:
-        result = _BUILDER.build(_SPEC)
+    handler = _RecordingHandler()
+    logger = logging.getLogger("repo_scanner.image.lxd")
+    logger.addHandler(handler)
+    try:
+        with _patched(respond) as calls:
+            result = _BUILDER.build(_SPEC)
+    finally:
+        logger.removeHandler(handler)
+
     assert isinstance(result, Failure) and "network" in result.reason.lower()
     assert not any("/root/install.sh" in argv for argv in calls)  # install never ran
     assert calls[-1][:4] == [*_LXC, "delete"]  # builder still cleaned up
+    # The firewall warning is emitted (the diagnostic that was previously never shown).
+    assert handler.warnings == ["check the lxdbr0 bridge firewall"]
 
 
 def test_identity_parses_the_fingerprint_or_none_when_absent() -> None:

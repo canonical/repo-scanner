@@ -61,18 +61,12 @@ def test_a_missing_image_is_built_recorded_and_then_reused() -> None:
         assert builder.builds == 1  # verified against the record, reused
 
 
-def test_an_image_that_fails_verification_is_rebuilt() -> None:
+def test_rebuilds_when_the_image_is_unverified_or_forced() -> None:
     with _isolated_cache():
         builder = _FakeBuilder(identity=None)
         ensure_image(builder, _SPEC)  # builds, records "built-id"
-        builder._id = "tampered"  # image now reports a different hash
+        builder._id = "tampered"  # present hash no longer matches the record
         assert ensure_image(builder, _SPEC) == "img:abc"
         assert builder.builds == 2  # rebuilt: present hash != recorded identity
-
-
-def test_force_rebuilds_even_a_verified_image() -> None:
-    with _isolated_cache():
-        builder = _FakeBuilder(identity=None)
-        ensure_image(builder, _SPEC)  # builds + records; now verifiable
         assert ensure_image(builder, _SPEC, force=True) == "img:abc"
-        assert builder.builds == 2
+        assert builder.builds == 3  # force rebuilds even a now-verified image
