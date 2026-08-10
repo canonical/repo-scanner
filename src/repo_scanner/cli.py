@@ -104,7 +104,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # SUBCOMMAND: IMAGE
     image_parser = subcommands.add_parser(
-        "image", help="Build container images with the tools baked in."
+        "image", help="Build the tool image and manage the image cache."
     )
     image_sub = image_parser.add_subparsers(dest="image_command", required=True)
     image_build = image_sub.add_parser(
@@ -117,6 +117,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Rebuild even if an image for this spec already exists.",
     )
+    image_cache = image_sub.add_parser(
+        "cache",
+        help="View or manage reposcan's record of built and pulled images.",
+    )
+    image_cache_sub = image_cache.add_subparsers(
+        dest="image_cache_command", required=True
+    )
+    image_cache_sub.add_parser("list", help="List the recorded image cache entries.")
+    image_cache_remove = image_cache_sub.add_parser(
+        "remove", help="Remove one entry by its image reference."
+    )
+    image_cache_remove.add_argument("reference")
+    image_cache_sub.add_parser("clear", help="Remove all image cache entries.")
 
     # SUBCOMMAND: CONFIG
     config_parser = subcommands.add_parser(
@@ -211,7 +224,10 @@ def _run_bootstrap(args: argparse.Namespace) -> int:
 
 
 def _run_image(args: argparse.Namespace) -> int:
-    """Build the tool image on demand for a container backend (local cannot)."""
+    """Build the tool image, or view/manage the image cache."""
+    if args.image_command == "cache":
+        return _run_image_cache(args)
+    # build: needs a container backend (local cannot build images).
     backend = select_backend(args.backend)
     if isinstance(backend, Failure):
         logger.error(backend.reason)
@@ -221,6 +237,15 @@ def _run_image(args: argparse.Namespace) -> int:
         logger.error("the %s backend cannot build images", backend.name)
         return 2
     return image_cmd.run_image_build(builder, force=args.force)
+
+
+def _run_image_cache(args: argparse.Namespace) -> int:
+    """List or manage the image cache. Reads/writes the cache file only; no backend."""
+    if args.image_cache_command == "list":
+        return image_cmd.run_cache_list()
+    if args.image_cache_command == "remove":
+        return image_cmd.run_cache_remove(args.reference)
+    return image_cmd.run_cache_clear()  # clear
 
 
 def main(argv: list[str] | None = None) -> int:

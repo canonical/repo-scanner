@@ -41,3 +41,25 @@ def test_a_malformed_cache_reads_as_empty() -> None:
         path.parent.mkdir(parents=True)
         path.write_text("{ not json")
         assert cache.recorded("reposcan:x") is None  # ignored, not fatal
+
+
+def test_entries_lists_all_records_and_remove_drops_one() -> None:
+    with _isolated():
+        assert cache.entries() == {}
+        cache.record("reposcan:x", "sha256:abc")
+        cache.record("ghcr.io/acme/thing:latest", "sha256:def")
+        assert cache.entries() == {
+            "reposcan:x": "sha256:abc",
+            "ghcr.io/acme/thing:latest": "sha256:def",
+        }
+        assert cache.remove("reposcan:x") is True  # present, removed
+        assert cache.recorded("reposcan:x") is None
+        assert cache.remove("reposcan:x") is False  # already gone
+
+
+def test_clear_empties_the_cache() -> None:
+    with _isolated():
+        cache.record("reposcan:x", "sha256:abc")
+        assert cache.clear() is None
+        assert cache.entries() == {}
+        assert cache.clear() is None  # already empty: still fine

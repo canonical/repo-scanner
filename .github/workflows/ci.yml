@@ -45,10 +45,6 @@ jobs:
           tar -xzf actionlint.tar.gz actionlint
           ./actionlint -color
 
-  # Real docker/lxd tests: build the tool image and run every tool in it. Run on
-  # PRs too, so a bug that only the real backend path reveals is caught before merge.
-  # The two backends run as parallel jobs (one image build each) selected by the
-  # test names; docker is present on the runner, lxd is provisioned by setup-lxd.
   integration:
     strategy:
       fail-fast: false
