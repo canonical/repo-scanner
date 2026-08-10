@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the real tool registry (repo_scanner.tools.registry).
 
 The registry is data, so the high-signal checks are that the user-facing set is right

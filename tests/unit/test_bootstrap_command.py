@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the `reposcan bootstrap` command (repo_scanner.commands.bootstrap_cmd).
 
 A fake execution context records the shell commands it is handed and can be told to

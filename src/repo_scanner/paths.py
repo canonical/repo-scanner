@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Filesystem locations reposcan uses on the local host.
 
 Config lives under $XDG_CONFIG_HOME (see config.py); installed tools live under

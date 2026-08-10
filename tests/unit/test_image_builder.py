@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the shared image ensure step (repo_scanner.image.builder).
 
 ensure_image is the trust boundary: it rebuilds unless the present image's hash

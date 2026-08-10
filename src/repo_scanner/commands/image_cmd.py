@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """The `reposcan image build` command: build the tool image on demand.
 
 The backend (and so the image builder) is chosen by main; this just runs the build.

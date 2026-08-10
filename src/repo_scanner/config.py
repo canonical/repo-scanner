@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Persistent user configuration, stored as JSON.
 
 Located at $XDG_CONFIG_HOME/reposcan/config.json (default

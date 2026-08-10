@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Run a subprocess and return its outcome as a value.
 
 `run_process` captures stdout and stderr (so a caller can parse or display them

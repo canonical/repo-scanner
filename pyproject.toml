@@ -43,10 +43,13 @@ XDG_CONFIG_HOME = "{env_tmp_dir}/xdg-config"
 
 [tool.tox.env.lint]
 description = "Lint and format-check with ruff"
+allowlist_externals = ["bash"]
 skip_install = true
 recreate = true
 deps = ["-r{tox_root}/requirements/lint.txt"]
 commands = [
+    ["bash", "tests/lint/ascii-check.sh", "py"],
+    ["bash", "tests/lint/license-check.sh"],
     ["ruff", "check", "{tox_root}/src", "{tox_root}/tests"],
     ["ruff", "format", "--check", "{tox_root}/src", "{tox_root}/tests"],
 ]

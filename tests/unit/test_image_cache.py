@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the image identity cache (repo_scanner.image.cache)."""
 
 import os

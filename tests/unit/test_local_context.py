@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the local execution context (repo_scanner.execution.local)."""
 
 import sys

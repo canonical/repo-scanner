@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the `reposcan invoke` command (repo_scanner.commands.invoke_cmd)."""
 
 import io

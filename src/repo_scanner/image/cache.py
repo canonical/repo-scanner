@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """A persistent record of built images' real content identity, for verifying reuse.
 
 An image is content-addressed by its BuildSpec (the reference/tag). But the reference

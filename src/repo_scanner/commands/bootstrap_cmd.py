@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """The `reposcan bootstrap` command: install tools onto the host (or, with an
 explicit --backend, into a container). All scanning tools by default, or a named
 subset; either way each tool's prerequisites (uv, the Go SDK) are pulled in

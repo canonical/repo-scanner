@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for backend selection (repo_scanner.backends).
 
 Availability is controlled by patching backends.run_process (the liveness probe);

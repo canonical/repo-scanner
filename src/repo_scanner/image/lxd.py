@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Build an LXD image from a BuildSpec, via the lxc CLI.
 
 LXD has no build file, so the image is produced by launching a build container from

@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """LXD execution context: run commands in an ephemeral container via the lxc
 CLI (no SDK)."""
 

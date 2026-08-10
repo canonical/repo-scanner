@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """reposcan tool installation.
 
 `reposcan bootstrap` and image generation consume the same per-tool

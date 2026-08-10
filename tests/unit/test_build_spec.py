@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the image build spec (repo_scanner.image.build_spec)."""
 
 import os

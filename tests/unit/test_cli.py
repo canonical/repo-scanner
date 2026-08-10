@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for CLI argument parsing and dispatch (repo_scanner.cli)."""
 
 import sys

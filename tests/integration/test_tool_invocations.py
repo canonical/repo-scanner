@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Integration tests: build the real tool image and invoke every tool in it.
 
 For each container backend (docker, lxd), force a real, hash-verified build of the tool

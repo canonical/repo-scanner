@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the tool install model (repo_scanner.tools).
 
 The value here is the install-command generation for each install shape and the

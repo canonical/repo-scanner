@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """The Tool model: reposcan's external tools, defined in code.
 
 Every tool is one of a few kinds: a PyPI package, a prebuilt native binary

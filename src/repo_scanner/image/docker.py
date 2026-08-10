@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Build a Docker image from a BuildSpec, via the docker CLI.
 
 The image is a stock base plus the spec's install script run once at build time,

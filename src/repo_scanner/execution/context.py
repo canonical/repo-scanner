@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Value types and the ExecutionContext Protocol.
 
 An ExecutionContext is a place reposcan can run commands: the local host, or an

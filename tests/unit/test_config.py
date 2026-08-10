@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for persistent config: the store, the config command, and CLI wiring.
 
 Each test isolates XDG_CONFIG_HOME to a temp dir so it never touches a real

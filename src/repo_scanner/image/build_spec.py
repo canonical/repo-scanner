@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """The image build spec: the single build script that installs every tool, plus the
 content-addressed identity used to name and reuse the built image.
 

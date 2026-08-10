@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the Docker image builder (repo_scanner.image.docker).
 
 docker is not invoked: run_process is patched with a fake that records the argv.

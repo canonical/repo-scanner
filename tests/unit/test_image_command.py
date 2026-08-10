@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the `reposcan image build` command (repo_scanner.commands.image_cmd).
 
 The builder is chosen by main and passed in, so this covers only run/print/force and

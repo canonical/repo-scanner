@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """The `reposcan invoke` command: run an installed tool, passing arguments through."""
 
 import logging

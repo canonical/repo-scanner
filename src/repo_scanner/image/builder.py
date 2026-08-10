@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """The ImageBuilder Protocol and the backend-agnostic ensure step.
 
 An ImageBuilder turns a BuildSpec into a built image for one backend (Docker or LXD).

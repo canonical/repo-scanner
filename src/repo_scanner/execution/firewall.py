@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Warn when the host firewall blocks forwarding on a container bridge, with a
 cause-aware fix. Ported from canonical/workshop's CheckBridgeFirewall, extended
 with an iptables-legacy fallback.

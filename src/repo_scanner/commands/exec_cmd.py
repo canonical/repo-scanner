@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """The `reposcan exec` command: run a command within the selected execution
 context. Only the local context exists so far."""
 

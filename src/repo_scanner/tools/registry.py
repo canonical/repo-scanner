@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """The tool registry: every tool reposcan drives, defined once with its pins.
 
 This is the single source of truth the plan calls for. Each entry names a tool and

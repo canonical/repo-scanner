@@ -1,3 +1,6 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 """Tests for the firewall check (repo_scanner.execution.firewall).
 
 The analyzers are fed nft JSON / iptables -S text directly; lxd_bridge_hint is driven
