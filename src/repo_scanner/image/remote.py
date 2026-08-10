@@ -18,20 +18,27 @@ CANONICAL_REF = "ghcr.io/canonical/repo-scanner:latest"
 
 
 def resolve_remote_ref(value: str) -> str:
-    """The image reference for a configured `image` value: the canonical published
-    image for the `canonical` shorthand, otherwise the value unchanged."""
+    """The image reference for a configured `image` value.
+
+    Returns:
+        The canonical published image for the `canonical` shorthand, otherwise the value
+        unchanged.
+    """
     return CANONICAL_REF if value == CANONICAL_SHORTHAND else value
 
 
 def is_digest_pinned(ref: str) -> bool:
-    """True if `ref` pins a specific image content by digest (name@sha256:...), which
-    the docker client verifies on pull, so it needs no trust-on-first-use record."""
+    """True if `ref` pins a specific image content by digest (name@sha256:...).
+
+    Returns:
+        The docker client verifies such a ref on pull, so it needs no trust-on-first-use
+        record.
+    """
     return "@sha256:" in ref
 
 
 class ImagePuller(Protocol):
-    """Pulls a published image for one backend and reports its content id. `name`
-    labels the backend ("docker")."""
+    """Pulls a published image for one backend and reports its content id."""
 
     name: str
 
@@ -40,8 +47,7 @@ class ImagePuller(Protocol):
         ...
 
     def identity(self, ref: str) -> str | None:
-        """The content id of the pulled image `ref` (the Docker image ID), or None if
-        no such image is present."""
+        """The content id of the pulled image `ref`, or None if it is not present."""
         ...
 
 
@@ -63,9 +69,20 @@ class DockerRemote:
 
 
 def ensure_pulled(puller: ImagePuller, ref: str) -> str | Failure:
-    """Pull `ref` and return the reference to run, or a Failure. A digest-pinned ref
-    is trusted directly. A tag-only ref is pinned on first use and, on later pulls,
-    refused if its content id no longer matches what was first recorded."""
+    """Pull `ref` and return the reference to run, or a Failure.
+
+    A digest-pinned ref is trusted directly. A tag-only ref is pinned on first use
+    and, on later pulls, refused if its content id no longer matches what was first
+    recorded.
+
+    Args:
+        puller: The backend puller that fetches the image and reports its content id.
+        ref: The image reference to pull.
+
+    Returns:
+        The reference to run, or a Failure if the pull failed, the image is absent
+        after pulling, or a tag-only ref's content id no longer matches its record.
+    """
     error = puller.pull(ref)
     if error is not None:
         return error

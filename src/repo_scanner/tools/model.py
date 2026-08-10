@@ -26,9 +26,11 @@ from typing import ClassVar, Protocol
 
 
 class ToolKind(str, Enum):
-    """How a tool is installed: from PyPI, as a pinned prebuilt download (a native
-    binary or the Go SDK archive), or built from Go source. Used for display; the
-    actual install behavior comes from the tool's type, not this label."""
+    """How a tool is installed: from PyPI, a prebuilt download, or Go source.
+
+    The prebuilt download may be a native binary or the Go SDK archive. Used for
+    display; the actual install behavior comes from the tool's type, not this label.
+    """
 
     PYPI = "pypi"
     NATIVE_BINARY = "native_binary"
@@ -64,8 +66,10 @@ class Tool(Protocol):
 
     @property
     def requires(self) -> "tuple[Tool, ...]":
-        """The tools that must be installed before this one (its dependencies): PyPI
-        tools require uv, Go tools require the Go SDK; empty when there is none."""
+        """The tools that must be installed before this one (its dependencies).
+
+        PyPI tools require uv, Go tools require the Go SDK; empty when there is none.
+        """
         ...
 
     @property
@@ -76,22 +80,27 @@ class Tool(Protocol):
 
     def install_commands(self, platform: Platform, install_root: str) -> list[str]:
         """Shell lines that install this tool, for `platform`, under `install_root`.
+
         Each line is run via the execution context (bootstrap) or concatenated into
-        an image build script (image generation)."""
+        an image build script (image generation).
+        """
         ...
 
     def installed_path(self, install_root: str) -> str:
-        """The installed executable's path under `install_root`. It exists only once
-        the tool is installed, so it doubles as the marker `tools` checks, and it is
-        what `invoke` runs."""
+        """The installed executable's path under `install_root`.
+
+        It exists only once the tool is installed, so it doubles as the marker `tools`
+        checks, and it is what `invoke` runs.
+        """
         ...
 
 
 @dataclass(frozen=True, kw_only=True)
 class NativeBinary:
-    """A tool installed from a pinned per-platform prebuilt download. `executable` is
-    the executable's name inside the download (defaulting to `name`); it is exposed at
-    `bin/<name>`, whatever shape the download takes:
+    """A tool installed from a pinned per-platform prebuilt download.
+
+    `executable` is the executable's name inside the download (defaulting to `name`);
+    it is exposed at `bin/<name>`, whatever shape the download takes:
 
     - an archive is extracted whole under `opt/<name>/`, and the executable, found
       wherever it sits, is symlinked into `bin/`. Keeping the tree lets multi-file
@@ -160,11 +169,13 @@ class NativeBinary:
 
 @dataclass(frozen=True)
 class PypiTool:
-    """A tool distributed on PyPI, installed into an isolated venv from a hash-pinned
-    requirements lock. `requirements` is the lock's contents (a --generate-hashes
+    """A tool distributed on PyPI, installed into an isolated venv from a pinned lock.
+
+    The lock is hash-pinned. `requirements` is the lock's contents (a --generate-hashes
     file); install writes it into place first, like the Go go.sum, so nothing needs
     to pre-exist in the container. `entrypoints` are the console scripts it provides,
-    linked onto the tool bin dir."""
+    linked onto the tool bin dir.
+    """
 
     name: str
     version: str
@@ -206,10 +217,12 @@ class PypiTool:
 @dataclass(frozen=True)
 class GoTool:
     """A tool built with `go install`, using the Go toolchain it names in `requires`.
+
     Pinned by its go.sum h1 hashes (`module_sum`, the module zip; `gomod_sum`, its
     go.mod), verified at build against a written go.sum with the public checksum DB
     off. `package` is the go install target (defaults to `module` when it is the
-    module root); `module` is the module path the go.sum entries are keyed on."""
+    module root); `module` is the module path the go.sum entries are keyed on.
+    """
 
     name: str
     version: str

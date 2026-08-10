@@ -13,8 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 def run_tools(install_root: str) -> int:
-    """List every scanning tool with its version, kind, and whether it is installed
-    under `install_root`. Always returns 0."""
+    """List every scanning tool with its version, kind, and install status.
+
+    Shows whether each tool is installed under `install_root`. Always returns 0.
+    """
     rows = []
     for tool in TOOLS.values():
         installed = os.path.exists(tool.installed_path(install_root))

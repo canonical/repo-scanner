@@ -1,10 +1,12 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan bootstrap` command: install tools onto the host (or, with an
-explicit --backend, into a container). All scanning tools by default, or a named
-subset; either way each tool's prerequisites (uv, the Go SDK) are pulled in
-automatically."""
+"""The `reposcan bootstrap` command: install tools onto the host or a container.
+
+With an explicit --backend, install into a container. All scanning tools by
+default, or a named subset; either way each tool's prerequisites (uv, the Go SDK)
+are pulled in automatically.
+"""
 
 import logging
 import sys
@@ -46,10 +48,21 @@ def run_bootstrap(
     platform: Platform,
     install_root: str,
 ) -> int:
-    """Install `names` (an empty list means every scanning tool), adding the
-    prerequisites each depends on. Tools install as independent groups: if one fails
-    it is reported and the rest proceed, since 9 of 10 installed beats 0. Returns 0
-    when every tool installed, 1 if any failed, or 2 for an unknown tool name."""
+    """Install `names` (an empty list means every scanning tool).
+
+    Adds the prerequisites each depends on. Tools install as independent groups: if
+    one fails it is reported and the rest proceed.
+
+    Args:
+        ctx: The started context to install into.
+        names: Tools to install; an empty list means every scanning tool.
+        platform: The platform to build install commands for.
+        install_root: Where the tools are installed.
+
+    Returns:
+        0 when every tool installed, 1 if any failed, or 2 for an unknown tool
+        name.
+    """
     if names:
         requested: list[Tool] = []
         unknown = []

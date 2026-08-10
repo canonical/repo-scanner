@@ -17,12 +17,16 @@ def _data_home() -> Path:
 
 
 def tools_root() -> Path:
-    """Where `bootstrap` installs tools and `invoke`/`tools` look for them:
-    $XDG_DATA_HOME/reposcan/tools (default ~/.local/share/reposcan/tools)."""
+    """Where `bootstrap` installs tools and `invoke`/`tools` look for them.
+
+    $XDG_DATA_HOME/reposcan/tools (default ~/.local/share/reposcan/tools).
+    """
     return _data_home() / "tools"
 
 
 def image_cache() -> Path:
-    """Where built images' verified identities are recorded (see image/cache.py):
-    $XDG_DATA_HOME/reposcan/images.json."""
+    """Where built images' verified identities are recorded (see image/cache.py).
+
+    $XDG_DATA_HOME/reposcan/images.json.
+    """
     return _data_home() / "images.json"

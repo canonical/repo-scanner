@@ -40,8 +40,11 @@ def _lock(name: str) -> str:
 
 
 def _gh(repo: str, tag: str, asset: str) -> str:
-    """A GitHub release download URL. Spelled from its parts because the full URLs
-    run past the line limit and repo/tag/asset are the parts that actually vary."""
+    """A GitHub release download URL.
+
+    Spelled from its parts because the full URLs run past the line limit and
+    repo/tag/asset are the parts that actually vary.
+    """
     return f"https://github.com/{repo}/releases/download/{tag}/{asset}"
 
 

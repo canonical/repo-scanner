@@ -92,7 +92,18 @@ target-version = "py310"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "D"]
+# Enforce google-style formatting on the docstrings we write, but do not require a
+# docstring on every public symbol (D100-D107): small, self-evident methods and
+# Protocol stubs stay undocumented rather than carrying filler.
+ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests document themselves through descriptive names, not docstrings.
+"tests/**" = ["D"]
 
 [tool.basedpyright]
 include = ["src", "tests"]

@@ -1,8 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan exec` command: run a command within the selected execution
-context. Only the local context exists so far."""
+"""`reposcan exec` command: run a command in the selected execution context."""
 
 import logging
 import sys
@@ -19,9 +18,12 @@ TIMEOUT_EXIT_CODE = 124
 def run_exec(
     context: ExecutionContext, command: list[str], *, timeout: float | None
 ) -> int:
-    """Run `command` in the already-started `context` and return an exit code: the
-    command's own exit code when it ran, 2 for a usage error, 124 on timeout, or 1
-    when it could not be started."""
+    """Run `command` in the already-started `context` and return an exit code.
+
+    Returns:
+        The command's own exit code when it ran, 2 for a usage error, 124 on
+        timeout, or 1 when it could not be started.
+    """
     if not command:
         logger.error("no command given")
         return 2

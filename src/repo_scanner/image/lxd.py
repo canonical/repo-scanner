@@ -22,8 +22,11 @@ logger = logging.getLogger(__name__)
 
 
 class LxdImageBuilder:
-    """Builds LXD images (an ImageBuilder). Aliases them `reposcan-<digest>` -- an
-    LXD alias cannot use a colon, which separates a remote from an image."""
+    """Builds LXD images (an ImageBuilder).
+
+    Aliases them `reposcan-<digest>` -- an LXD alias cannot use a colon, which
+    separates a remote from an image.
+    """
 
     name = "lxd"
 
@@ -57,9 +60,12 @@ class LxdImageBuilder:
         return error if error is not None else alias
 
     def _provision(self, handle: str, spec: BuildSpec, alias: str) -> Failure | None:
-        """Wait for the build container's network, abort early if it has none, then
-        install the tools into it and stop and publish it under `alias`. Returns None or
-        the first Failure."""
+        """Install the tools into the build container and publish it under `alias`.
+
+        Waits for the container's network and aborts early if it has none, then
+        installs the tools, stops the container, and publishes it. Returns None or the
+        first Failure.
+        """
         ready = run_process(
             [*LXC, "exec", handle, "--", "cloud-init", "status", "--wait"],
             check=True,
@@ -88,13 +94,16 @@ class LxdImageBuilder:
 
 
 def _offline_reason(handle: str) -> Failure | None:
-    """A Failure if the build container cannot reach the internet, else None. Probes by
-    opening a TCP connection to github.com:443 from inside the container via bash's
-    /dev/tcp (bash is always present in the base image, unlike curl or wget); `timeout`
-    bounds a blocked bridge that would otherwise hang. The install needs github, PyPI,
-    and the apt mirrors, so no outbound network is fatal and worth catching in seconds
-    instead of a multi-minute download hang. On failure it logs a firewall/bridge hint
-    (a blocked lxdbr0 bridge is the usual cause) before returning the Failure."""
+    """A Failure if the build container cannot reach the internet, else None.
+
+    Probes by opening a TCP connection to github.com:443 from inside the container via
+    bash's /dev/tcp (bash is always present in the base image, unlike curl or wget);
+    `timeout` bounds a blocked bridge that would otherwise hang. The install needs
+    github, PyPI, and the apt mirrors, so no outbound network is fatal and worth
+    catching in seconds instead of a multi-minute download hang. On failure it logs a
+    firewall/bridge hint (a blocked lxdbr0 bridge is the usual cause) before returning
+    the Failure.
+    """
     probe = run_process(
         [
             *LXC,

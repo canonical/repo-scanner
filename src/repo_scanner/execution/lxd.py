@@ -1,8 +1,10 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""LXD execution context: run commands in an ephemeral container via the lxc
-CLI (no SDK)."""
+"""LXD execution context: run commands in an ephemeral container.
+
+Uses the lxc CLI (no SDK).
+"""
 
 import os
 from collections.abc import Mapping, Sequence
@@ -19,10 +21,15 @@ LXC = ["lxc", "--project", PROJECT]
 
 def ensure_project() -> Failure | None:
     """Create reposcan's LXD project if it does not exist yet; a no-op once it does.
+
     features.images=true keeps the built tool image inside this project rather than the
     default one; features.profiles=false borrows the default project's profile so
     containers still get its root disk and network and launch with no per-project setup.
-    Instances are isolated to the project regardless (that is what LXD projects do)."""
+
+    Returns:
+        None when the project already exists or was created; a Failure if creating
+        it failed.
+    """
     presence_check = run_process(["lxc", "project", "show", PROJECT])
     if isinstance(presence_check, ExecResult) and presence_check.ok:
         return None
@@ -43,8 +50,10 @@ def ensure_project() -> Failure | None:
 
 
 class LxdContext:
-    """Runs commands in an ephemeral container via `lxc`, launched from `image`
-    (a stock base for plain runs, or the tool image for scans)."""
+    """Runs commands in an ephemeral container via `lxc`, launched from `image`.
+
+    `image` is a stock base for plain runs, or the tool image for scans.
+    """
 
     name = "lxd"
 

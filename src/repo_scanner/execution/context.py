@@ -22,8 +22,10 @@ from repo_scanner.execution.process import ExecResult, Failure
 
 class ExecutionContext(Protocol):
     """A place reposcan can run commands: the local host, or an ephemeral container.
+
     Whether the backend is available is decided before a context is made (see
-    backends.py), so a context is just a lifecycle: start(), run(), stop()."""
+    backends.py), so a context is just a lifecycle: start(), run(), stop().
+    """
 
     name: str
 

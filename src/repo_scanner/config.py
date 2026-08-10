@@ -24,8 +24,11 @@ def config_path() -> Path:
 
 
 def load() -> dict[str, Any]:
-    """The saved config, or {} if there is none. A missing file is empty; a
-    malformed one is ignored with a warning rather than failing the command."""
+    """The saved config, or {} if there is none.
+
+    A missing file is empty; a malformed one is ignored with a warning rather than
+    failing the command.
+    """
     path = config_path()
     try:
         text = path.read_text()
@@ -43,8 +46,14 @@ def load() -> dict[str, Any]:
 
 
 def save(settings: dict[str, Any]) -> Failure | None:
-    """Write `settings` as JSON, creating the parent directory. None on success, or
-    a Failure if it could not be written."""
+    """Write `settings` as JSON, creating the parent directory.
+
+    Args:
+        settings: The configuration to persist.
+
+    Returns:
+        None on success, or a Failure if it could not be written.
+    """
     path = config_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)

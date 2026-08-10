@@ -1,8 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan image` commands: build the tool image, and view or manage the
-image cache (see image/cache.py)."""
+"""The `reposcan image` commands: build the tool image and manage the image cache."""
 
 import logging
 import sys
@@ -17,9 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 def run_image_build(builder: ImageBuilder, *, force: bool) -> int:
-    """Build (or reuse) the tool image with `builder`. Returns 0 with the image
-    reference printed, or 1 if the build failed. `force` rebuilds even when the image
-    already exists."""
+    """Build (or reuse) the tool image with `builder`.
+
+    Args:
+        builder: The image builder for the selected backend.
+        force: Rebuild even when an image for this spec already exists.
+
+    Returns:
+        0 with the image reference printed, or 1 if the build failed.
+    """
     spec = build_spec(current_platform())
     result = ensure_image(builder, spec, force=force)
     if isinstance(result, Failure):
@@ -42,8 +47,12 @@ def run_cache_list() -> int:
 
 
 def run_cache_remove(reference: str) -> int:
-    """Remove `reference` from the image cache. 0 when removed, 1 when it was not in
-    the cache or the cache could not be written."""
+    """Remove `reference` from the image cache.
+
+    Returns:
+        0 when removed, 1 when it was not in the cache or the cache could not be
+        written.
+    """
     result = cache.remove(reference)
     if isinstance(result, Failure):
         logger.error(result.reason)
@@ -57,7 +66,10 @@ def run_cache_remove(reference: str) -> int:
 
 def run_cache_clear() -> int:
     """Remove every image cache entry.
-    0 on success, 1 if the cache could not be written."""
+
+    Returns:
+        0 on success, 1 if the cache could not be written.
+    """
     count = len(cache.entries())
     error = cache.clear()
     if error is not None:

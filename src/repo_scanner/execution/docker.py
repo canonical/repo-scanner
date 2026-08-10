@@ -1,8 +1,10 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Docker execution context: run commands in an ephemeral container via the
-docker CLI (no SDK)."""
+"""Docker execution context: run commands in an ephemeral container.
+
+Uses the docker CLI (no SDK).
+"""
 
 from collections.abc import Mapping, Sequence
 
@@ -10,8 +12,7 @@ from repo_scanner.execution.process import ExecResult, Failure, run_process
 
 
 class DockerContext:
-    """Runs commands in an ephemeral container via `docker`, started from `image`
-    (a stock base for plain runs, or the tool image for scans)."""
+    """Runs commands in an ephemeral container via `docker`, started from `image`."""
 
     name = "docker"
 

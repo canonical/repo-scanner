@@ -22,9 +22,14 @@ def _validate_backend(value: str) -> str | None:
 
 
 def _validate_image(value: str) -> str | None:
-    """None if `value` is a usable image reference, else an error message. Any
-    non-empty reference is accepted (the 'canonical' shorthand, or a full OCI ref);
-    whether it can actually be pulled is decided when it is used."""
+    """Validate image reference.
+
+    Any non-empty reference is accepted (the 'canonical' shorthand, or a full OCI
+    ref); whether it can actually be pulled is decided when it is used.
+
+    Returns:
+        None if `value` is a usable image reference, else an error message.
+    """
     if value.strip():
         return None
     return "invalid value for image: give an image reference or 'canonical'"
@@ -41,8 +46,12 @@ _VALIDATORS: dict[str, ConfigValidator] = {
 
 
 def set_value(key: str, value: str) -> int:
-    """Validate and persist `key = value`. 0 on success, 2 for an invalid key or
-    value, 1 if the config could not be written."""
+    """Validate and persist `key = value`.
+
+    Returns:
+        0 on success, 2 for an invalid key or value, 1 if the config could not
+        be written.
+    """
     validate = _VALIDATORS.get(key)
     if validate is None:
         logger.error("unknown config key: %s", key)
@@ -61,9 +70,12 @@ def set_value(key: str, value: str) -> int:
 
 
 def unset_value(key: str) -> int:
-    """Remove `key` from the persisted config. 0 on success, including when it was
-    not set (the key is absent either way); 2 for an unknown key, 1 if the config
-    could not be written."""
+    """Remove `key` from the persisted config.
+
+    Returns:
+        0 on success, including when it was not set (the key is absent either
+        way); 2 for an unknown key, 1 if the config could not be written.
+    """
     settings = config.load()
     if key not in settings:
         logger.info("config key not set: %s", key)
@@ -77,8 +89,11 @@ def unset_value(key: str) -> int:
 
 
 def get_value(key: str | None) -> int:
-    """Print one config value, or all of them when `key` is None. 0 on success, 1 if
-    the requested key is not set."""
+    """Print one config value, or all of them when `key` is None.
+
+    Returns:
+        0 on success, 1 if the requested key is not set.
+    """
     if key is not None and key not in _VALIDATORS:
         logger.error("config key '%s' is not known", key)
     settings = config.load()

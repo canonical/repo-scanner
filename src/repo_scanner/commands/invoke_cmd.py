@@ -24,9 +24,19 @@ def run_invoke(
     *,
     timeout: float | None,
 ) -> int:
-    """Run the installed tool `name` with `args`, forwarding its output and exit
-    code. Returns 2 for an unknown tool, 1 when it is not installed or could not be
-    started, 124 on timeout, or the tool's own exit code."""
+    """Run the installed tool `name` with `args`, forwarding its output and exit code.
+
+    Args:
+        ctx: The started context to run the tool in.
+        name: The installed tool to run.
+        args: Arguments passed through to the tool.
+        install_root: Where the tools are installed.
+        timeout: Kill the tool after this many seconds, or None for no limit.
+
+    Returns:
+        2 for an unknown tool, 1 when it is not installed or could not be
+        started, 124 on timeout, or the tool's own exit code.
+    """
     tool = TOOLS.get(name)
     if tool is None:
         logger.error("unknown tool: %s", name)

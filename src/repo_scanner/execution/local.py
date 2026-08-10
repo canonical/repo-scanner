@@ -10,8 +10,11 @@ from repo_scanner.execution.process import ExecResult, Failure, run_process
 
 
 class LocalContext:
-    """Runs commands on the host. Nothing to start or stop. Per-command `env` is
-    overlaid on the inherited host environment."""
+    """Runs commands on the host.
+
+    Nothing to start or stop. Per-command `env` is overlaid on the inherited host
+    environment.
+    """
 
     name = "local"
 

@@ -36,21 +36,26 @@ class ExecResult:
 
 @dataclass(frozen=True)
 class Failure:
-    """An operation that did not complete: a context that could not be started, or
-    a command that could not be started or exceeded its timeout. `reason` is
-    human-readable."""
+    """An operation that did not complete: a context or command that failed to run.
+
+    The context could not be started, or the command could not be started or exceeded
+    its timeout. `reason` is human-readable.
+    """
 
     reason: str
     timed_out: bool = False
 
 
 class _Tee:
-    """Drains one pipe into a buffer and -- when a live stream is given -- echoes it to
-    that stream a character at a time (like `tee`), so output with no trailing newline
-    (prompts, progress bars) shows immediately instead of waiting for the line to end.
-    The capture stays line-oriented. One instance handles one pipe; stdout and stderr
-    each get their own so that reading both concurrently (on separate threads) never
-    deadlocks on a full pipe buffer. A None live stream captures without echoing."""
+    """Drains one pipe into a buffer and optionally echoes it to a live stream.
+
+    When a live stream is given, echoes it to that stream a character at a time
+    (like `tee`), so output with no trailing newline (prompts, progress bars) shows
+    immediately instead of waiting for the line to end. The capture stays
+    line-oriented. One instance handles one pipe; stdout and stderr each get their own
+    so that reading both concurrently (on separate threads) never deadlocks on a full
+    pipe buffer. A None live stream captures without echoing.
+    """
 
     def __init__(self, source: IO[str], live: TextIO | None) -> None:
         self._source = source
@@ -58,8 +63,11 @@ class _Tee:
         self._captured: list[str] = []
 
     def drain(self) -> None:
-        """Read the source to EOF, echoing each character live (when a live stream is
-        set) and buffering the text as whole lines."""
+        """Read the source to EOF, echoing live and buffering as whole lines.
+
+        Each character is echoed live when a live stream is set; the text is buffered
+        as whole lines.
+        """
         line: list[str] = []
         while True:
             char = self._source.read(1)
@@ -89,10 +97,24 @@ def run_process(
     check: bool = False,
     stream: bool = False,
 ) -> ExecResult | Failure:
-    """Run `command`. Return an ExecResult if it ran, or a Failure if it could not be
-    started or exceeded `timeout` (None means no limit). With `check`, a nonzero exit
-    is also a Failure, so a returned ExecResult has exited 0. With `stream`, the
-    command's output is also streamed to this process's console as it runs.
+    """Run `command` and return its outcome as an ExecResult or Failure.
+
+    With `check`, a nonzero exit is itself a Failure, so a returned ExecResult has
+    always exited 0 (like `subprocess.run(check=True)`, but returned rather than
+    raised).
+
+    Args:
+        command: The argv to run; the first element is the executable.
+        cwd: Working directory for the process, or None to inherit this process's.
+        env: Environment for the process, or None to inherit this process's.
+        timeout: Seconds to wait before killing the process, or None for no limit.
+        check: When True, treat a nonzero exit as a Failure rather than an ExecResult.
+        stream: When True, also echo the command's output to this process's console
+            as it runs.
+
+    Returns:
+        An ExecResult with the exit code and captured output when the process ran to
+        completion, or a Failure if it could not be started or exceeded `timeout`.
     """
     argv = list(command)
     if not argv:

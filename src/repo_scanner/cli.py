@@ -166,8 +166,7 @@ def _command_argv(argv: list[str]) -> list[str]:
 
 
 def _run_config(args: argparse.Namespace) -> int:
-    """Get, set, or unset a config value. Reads/writes a file only; no execution
-    context."""
+    """Get, set, or unset a config value."""
     if args.config_command == "set":
         return config_cmd.set_value(args.key, args.value)
     if args.config_command == "unset":
@@ -205,10 +204,11 @@ def _run_invoke(args: argparse.Namespace) -> int:
 
 
 def _run_bootstrap(args: argparse.Namespace) -> int:
-    """Install tools into a plain environment. Defaults to local. An explicit
-    --backend installs into a plain container, not the image.
-    A host install is confirmed first (unless --confirm), since it changes the host;
-    installing into a container needs no such confirmation."""
+    """Install tools into a plain environment.
+
+    Defaults to local. An explicit --backend installs into a plain container, not
+    the image. A host install is confirmed first (unless --confirm).
+    """
     with start_session(args.backend or "local", tool_image=False) as session:
         if not session.ok:
             return session.exit_code

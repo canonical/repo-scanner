@@ -1,9 +1,10 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Warn when the host firewall blocks forwarding on a container bridge, with a
-cause-aware fix. Ported from canonical/workshop's CheckBridgeFirewall, extended
-with an iptables-legacy fallback.
+"""Warn when the host firewall blocks bridge forwarding, with a cause-aware fix.
+
+Ported from canonical/workshop's CheckBridgeFirewall, extended with an
+iptables-legacy fallback.
 
 Detection is cause-agnostic: is the FORWARD chain policy drop, with no rule that
 accepts traffic for the bridge? The remediation is cause-aware: it suggests
@@ -28,20 +29,27 @@ _LXD_BRIDGE = "lxdbr0"
 
 def warn_if_lxd_bridge_blocked(bridge: str = _LXD_BRIDGE) -> None:
     """Log a warning if the host firewall blocks forwarding on the LXD bridge.
+
     Advisory only. Call before every `lxc launch` -- both running a container and
-    building an image launch on the bridge and fail the same way when it is blocked."""
+    building an image launch on the bridge and fail the same way when it is blocked.
+    """
     warning = firewall_warning(bridge)
     if warning is not None:
         logger.warning(warning)
 
 
 def lxd_bridge_hint(bridge: str = _LXD_BRIDGE) -> str:
-    """Firewall guidance to log when an LXD container has confirmed no outbound
-    network. Returns the specific cause-and-fix when the host firewall can be read and
-    shows `bridge` blocked; otherwise generic remediation -- reading nft/iptables needs
-    root privileges that we may not have, and a blocked FORWARD chain is the usual
-    culprit. Unlike `firewall_warning`, this never returns None: the caller already
-    knows there is a problem and always wants something actionable to show."""
+    """Firewall guidance to log when an LXD container has no outbound network.
+
+    Reading nft/iptables needs root privileges that we may not have, and a blocked
+    FORWARD chain is the usual culprit. Unlike `firewall_warning`, this never returns
+    None: the caller already knows there is a problem and always wants something
+    actionable to show.
+
+    Returns:
+        str: The specific cause and fix if the host firewall can be read and shows
+        `bridge` blocked; otherwise, generic remediation.
+    """
     detected = firewall_warning(bridge)
     if detected is not None:
         return detected
@@ -53,9 +61,11 @@ def lxd_bridge_hint(bridge: str = _LXD_BRIDGE) -> str:
 
 
 def firewall_warning(bridge: str) -> str | None:
-    """A warning with a proposed fix if the host FORWARD policy drops `bridge`
-    traffic, else None. Uses nftables when present, else iptables-legacy; None when
-    neither reports a filter FORWARD chain."""
+    """A warning with a proposed fix if the FORWARD policy drops `bridge`, else None.
+
+    Uses nftables when present, else iptables-legacy; None when neither reports a
+    filter FORWARD chain.
+    """
     nft = run_process(["nft", "-j", "list", "table", "ip", "filter"])
     if isinstance(nft, ExecResult) and nft.exit_code == 0:
         return _analyze_nft(nft.stdout, bridge)

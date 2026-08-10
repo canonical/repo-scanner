@@ -41,8 +41,10 @@ class Availability:
 
 
 def _probe(command: list[str]) -> Availability:
-    """Availability from a quick liveness command (e.g. `docker info`): ok on exit 0,
-    otherwise not, carrying the reason."""
+    """Report availability from a quick liveness command such as `docker info`.
+
+    The command is ok on exit 0, otherwise not, carrying the reason.
+    """
     result = run_process(command, timeout=10)
     if isinstance(result, Failure):
         return Availability(ok=False, reason=result.reason)
@@ -54,9 +56,12 @@ def _probe(command: list[str]) -> Availability:
 
 
 class Backend(Protocol):
-    """A place reposcan can work: it reports its availability and produces a context to
-    run in (optionally from a specific `image`) and the image builder to build for.
-    `image_builder` is None for a backend that cannot build images (local)."""
+    """A place reposcan can work, reporting availability and producing a context.
+
+    It produces a context to run in (optionally from a specific `image`) and the
+    image builder to build for. `image_builder` is None for a backend that cannot
+    build images (local).
+    """
 
     name: str
 
@@ -67,13 +72,18 @@ class Backend(Protocol):
     def image_builder(self) -> ImageBuilder | None: ...
 
     def image_puller(self) -> ImagePuller | None:
-        """The puller to retrieve a remote image on this backend, or None
-        for a backend that cannot (local, and lxd for now), which builds locally."""
+        """The puller to retrieve a remote image on this backend, or None.
+
+        None for a backend that cannot (local, and lxd for now), which builds
+        locally.
+        """
         ...
 
     def tool_root(self) -> str:
-        """Where tools live for this backend: the host tools dir for local, the image
-        install root for a container."""
+        """Where tools live for this backend.
+
+        The host tools dir for local, the image install root for a container.
+        """
         ...
 
 
@@ -143,9 +153,17 @@ BACKEND_NAMES = ("auto", *_BY_NAME)
 
 
 def select_backend(requested: str | None) -> Backend | Failure:
-    """Choose a backend. `requested` is the command-line choice, or None to fall back
-    to $REPOSCAN_BACKEND, then saved config, then 'auto'. 'auto' returns the first
-    available of lxd, docker, then local."""
+    """Choose a backend.
+
+    Args:
+        requested: The command-line choice, or None to fall back to
+            $REPOSCAN_BACKEND, then saved config, then 'auto'.
+
+    Returns:
+        The selected backend; 'auto' picks the first available of lxd, docker,
+        then local. A Failure if the requested backend is unknown or
+        unavailable, or if none is available.
+    """
     backend = requested or os.environ.get("REPOSCAN_BACKEND")
     if not backend:
         saved = config.load().get("backend")
@@ -169,11 +187,18 @@ def select_backend(requested: str | None) -> Backend | Failure:
 
 
 def tool_context(backend: Backend) -> ExecutionContext | Failure:
-    """A context with the tools available. For a local backend, that is the host (tools
-    live there, installed by `bootstrap`). For a container backend it is a container
-    running the tool image: a configured remote image, pulled and verified -- when one
-    is set and the backend can use it -- otherwise, the image built on demand and
-    hash-verified before use. A pull or build failure is returned as a Failure."""
+    """A context with the tools available.
+
+    For a local backend, that is the host. For a container backend, it is a container
+    running the tool image: a configured remote image, when available, or the image
+    built on demand and hash-verified before use.
+
+    Args:
+        backend: The backend to produce a tool context for.
+
+    Returns:
+        A ready context, or a Failure if a pull or build failed.
+    """
     builder = backend.image_builder()
     if builder is None:
         return backend.context()
@@ -200,9 +225,12 @@ def tool_context(backend: Backend) -> ExecutionContext | Failure:
 
 @dataclass(frozen=True)
 class Session:
-    """A started place to run a command in: its context and where its tools live, or --
-    when not `ok` -- a failure exit code. `context` is valid only when `ok`; it is
-    stopped when the `start_session` block exits."""
+    """A started place to run a command in.
+
+    It carries its context and where its tools live, or -- when not `ok` -- a
+    failure exit code. `context` is valid only when `ok`; it is stopped when the
+    `start_session` block exits.
+    """
 
     _context: ExecutionContext | None
     tool_root: str
@@ -222,10 +250,18 @@ class Session:
 def start_session(
     requested_backend: str | None, *, tool_image: bool
 ) -> Generator[Session]:
-    """Select a backend and start a context in it. Use the verified tool image (built on
-    demand) when `tool_image`, else a plain container. Yields a session and stops it
-    on exit. A failed step yields a not-`ok` Session carrying the exit code: 2 when no
-    backend could be selected, 1 when the context could not be built or started."""
+    """Select a backend and start a context in it.
+
+    Yields a session and stops it on exit. A failed step yields a not-`ok`
+    Session carrying the exit code: 2 when no backend could be selected, 1 when
+    the context could not be built or started.
+
+    Args:
+        requested_backend: The backend to select, or None to fall back to the
+            environment, saved config, then 'auto'.
+        tool_image: Use the verified tool image (built on demand) when True,
+            else a plain container.
+    """
     backend = select_backend(requested_backend)
     if isinstance(backend, Failure):
         logger.error(backend.reason)

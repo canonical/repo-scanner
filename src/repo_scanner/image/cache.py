@@ -21,8 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 def entries() -> dict[str, str]:
-    """Every recorded reference -> identity pair, read from the cache file. Empty if
-    the file is missing or malformed (a bad cache is ignored, not fatal)."""
+    """Every recorded reference -> identity pair, read from the cache file.
+
+    Returns:
+        The recorded reference -> identity map, empty if the file is missing or
+        malformed (a bad cache is ignored, not fatal).
+    """
     path = image_cache()
     try:
         data = json.loads(path.read_text())
@@ -38,8 +42,11 @@ def entries() -> dict[str, str]:
 
 
 def _save(data: dict[str, str]) -> Failure | None:
-    """Write the cache map, creating its parent directory. None on success, or a
-    Failure if it could not be written."""
+    """Write the cache map, creating its parent directory.
+
+    Returns:
+        None on success, or a Failure if it could not be written.
+    """
     path = image_cache()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -55,9 +62,11 @@ def recorded(reference: str) -> str | None:
 
 
 def record(reference: str, identity: str) -> None:
-    """Remember that `reference` was built with content identity `identity`. A cache
-    that cannot be written is a warning, not a failure: the image just gets rebuilt
-    next time rather than reused."""
+    """Remember that `reference` was built with content identity `identity`.
+
+    A cache that cannot be written is a warning, not a failure: the image just gets
+    rebuilt next time rather than reused.
+    """
     data = entries()
     data[reference] = identity
     error = _save(data)
@@ -66,8 +75,12 @@ def record(reference: str, identity: str) -> None:
 
 
 def remove(reference: str) -> bool | Failure:
-    """Drop `reference` from the cache. True if it was present and removed, False if
-    it was not there, or a Failure if the cache could not be written."""
+    """Drop `reference` from the cache.
+
+    Returns:
+        True if it was present and removed, False if it was not there, or a Failure
+        if the cache could not be written.
+    """
     data = entries()
     if reference not in data:
         return False
@@ -77,8 +90,12 @@ def remove(reference: str) -> bool | Failure:
 
 
 def clear() -> Failure | None:
-    """Remove every entry. None on success (including when already empty), or a
-    Failure if the cache could not be written."""
+    """Remove every entry.
+
+    Returns:
+        None on success (including when already empty), or a Failure if the cache
+        could not be written.
+    """
     if not entries():
         return None
     return _save({})

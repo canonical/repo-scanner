@@ -34,8 +34,11 @@ class ImageBuilder(Protocol):
         ...
 
     def identity(self, reference: str) -> str | None:
-        """The real content hash of the image `reference` currently points at (the
-        Docker image ID or LXD fingerprint), or None if no such image is present."""
+        """The real content hash of the image `reference`, or None if absent.
+
+        The hash is the Docker image ID or LXD fingerprint; None means no such image
+        is currently present.
+        """
         ...
 
     def build(self, spec: BuildSpec) -> str | Failure:
@@ -46,9 +49,21 @@ class ImageBuilder(Protocol):
 def ensure_image(
     builder: ImageBuilder, spec: BuildSpec, *, force: bool = False
 ) -> str | Failure:
-    """Returns the reference of a verified image built from `spec`. Reuses the present
-    image only when its hash matches the identity recorded at its last build; otherwise
-    (missing, mismatched, or `force`) it is rebuilt and its identity re-recorded."""
+    """Returns the reference of a verified image built from `spec`.
+
+    Reuses the present image only when its hash matches the identity recorded at its
+    last build; otherwise (missing, mismatched, or `force`) it is rebuilt and its
+    identity re-recorded.
+
+    Args:
+        builder: The backend builder that names, hashes, and builds the image.
+        spec: The build spec that content-addresses the image.
+        force: Rebuild even when a matching image is already present.
+
+    Returns:
+        The verified image reference, or a Failure if the build failed or the image
+        vanished after building.
+    """
     reference = builder.reference(spec)
     if not force:
         present = builder.identity(reference)
