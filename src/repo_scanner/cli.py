@@ -125,6 +125,8 @@ def build_parser() -> argparse.ArgumentParser:
         "get", help="Get a config value, or all values when no key is given."
     )
     config_get.add_argument("key", nargs="?", default=None)
+    config_unset = config_sub.add_parser("unset", help="Remove a config value.")
+    config_unset.add_argument("key")
 
     return parser
 
@@ -146,9 +148,12 @@ def _command_argv(argv: list[str]) -> list[str]:
 
 
 def _run_config(args: argparse.Namespace) -> int:
-    """Get or set a config value. Reads/writes a file only; no execution context."""
+    """Get, set, or unset a config value. Reads/writes a file only; no execution
+    context."""
     if args.config_command == "set":
         return config_cmd.set_value(args.key, args.value)
+    if args.config_command == "unset":
+        return config_cmd.unset_value(args.key)
     return config_cmd.get_value(args.key)
 
 

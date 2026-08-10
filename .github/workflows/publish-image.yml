@@ -1,0 +1,51 @@
+name: publish-image
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Build the tool image
+        id: build
+        run: |
+          set -euo pipefail
+          uv run reposcan --backend docker image build | tee build.log
+          ref=$(grep -oE '^reposcan:[0-9a-f]{12}$' build.log | tail -n1)
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "digest=${ref#reposcan:}" >> "$GITHUB_OUTPUT"
+
+      - name: Push to GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOCAL_REF: ${{ steps.build.outputs.ref }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "${GH_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+          # The content-addressed digest tag, plus latest, plus the release tag when
+          # this run came from a published release.
+          tags=("${DIGEST}" latest)
+          if [ -n "${RELEASE_TAG:-}" ]; then
+            tags+=("${RELEASE_TAG}")
+          fi
+          for tag in "${tags[@]}"; do
+            docker tag "${LOCAL_REF}" "${image}:${tag}"
+            docker push "${image}:${tag}"
+          done

@@ -18,13 +18,16 @@ from repo_scanner.backends import (
     Backend,
     DockerBackend,
     LocalBackend,
+    LxdBackend,
     select_backend,
     start_session,
     tool_context,
 )
 from repo_scanner.execution.docker import DockerContext
 from repo_scanner.execution.local import LocalContext
+from repo_scanner.execution.lxd import LxdContext
 from repo_scanner.execution.process import ExecResult, Failure
+from repo_scanner.image.remote import CANONICAL_REF
 from repo_scanner.paths import tools_root
 
 
@@ -157,6 +160,38 @@ def test_tool_context_local_on_host_container_in_the_verified_image() -> None:
         assert isinstance(tool_context(DockerBackend()), Failure)
     finally:
         backends.ensure_image = saved
+
+
+def test_tool_context_uses_a_configured_remote_image_when_the_backend_can() -> None:
+    def remote_ok(puller: object, ref: str) -> str:
+        return f"pulled:{ref}"
+
+    def remote_fail(puller: object, ref: str) -> Failure:
+        return Failure(reason="pull failed")
+
+    def build_ok(builder: object, spec: object, *, force: bool = False) -> str:
+        return "reposcan:tools"
+
+    saved_pulled = backends.ensure_pulled
+    saved_build = backends.ensure_image
+    try:
+        with _saved_config({"image": "canonical"}):
+            # Docker resolves the shorthand, pulls it, and runs the pulled image.
+            backends.ensure_pulled = remote_ok
+            ctx = tool_context(DockerBackend())
+            assert isinstance(ctx, DockerContext)
+            assert ctx._image == f"pulled:{CANONICAL_REF}"
+            # A pull failure surfaces as a Failure.
+            backends.ensure_pulled = remote_fail
+            assert isinstance(tool_context(DockerBackend()), Failure)
+            # LXD cannot use a remote image yet, so it ignores the config and builds.
+            backends.ensure_image = build_ok
+            lxd_ctx = tool_context(LxdBackend())
+            assert isinstance(lxd_ctx, LxdContext)
+            assert lxd_ctx._image == "reposcan:tools"
+    finally:
+        backends.ensure_pulled = saved_pulled
+        backends.ensure_image = saved_build
 
 
 def test_start_session_runs_on_the_started_context_or_reports_a_bad_backend() -> None:

@@ -20,6 +20,12 @@ from repo_scanner.image.build_spec import BASE_IMAGE, INSTALL_ROOT, build_spec
 from repo_scanner.image.builder import ImageBuilder, ensure_image
 from repo_scanner.image.docker import DockerImageBuilder
 from repo_scanner.image.lxd import LxdImageBuilder
+from repo_scanner.image.remote import (
+    DockerRemote,
+    ImagePuller,
+    ensure_pulled,
+    resolve_remote_ref,
+)
 from repo_scanner.paths import tools_root
 from repo_scanner.tools.install import current_platform
 
@@ -60,6 +66,11 @@ class Backend(Protocol):
 
     def image_builder(self) -> ImageBuilder | None: ...
 
+    def image_puller(self) -> ImagePuller | None:
+        """The puller to retrieve a remote image on this backend, or None
+        for a backend that cannot (local, and lxd for now), which builds locally."""
+        ...
+
     def tool_root(self) -> str:
         """Where tools live for this backend: the host tools dir for local, the image
         install root for a container."""
@@ -78,6 +89,9 @@ class LxdBackend:
     def image_builder(self) -> ImageBuilder:
         return LxdImageBuilder()
 
+    def image_puller(self) -> None:
+        return None  # LXD consumes OCI images differently; not supported yet
+
     def tool_root(self) -> str:
         return INSTALL_ROOT
 
@@ -94,6 +108,9 @@ class DockerBackend:
     def image_builder(self) -> ImageBuilder:
         return DockerImageBuilder()
 
+    def image_puller(self) -> ImagePuller:
+        return DockerRemote()
+
     def tool_root(self) -> str:
         return INSTALL_ROOT
 
@@ -109,6 +126,9 @@ class LocalBackend:
 
     def image_builder(self) -> None:
         return None  # tools install onto the host, not into an image
+
+    def image_puller(self) -> None:
+        return None  # tools run on the host; there is no image to pull
 
     def tool_root(self) -> str:
         return str(tools_root())
@@ -149,13 +169,29 @@ def select_backend(requested: str | None) -> Backend | Failure:
 
 
 def tool_context(backend: Backend) -> ExecutionContext | Failure:
-    """A context with the tools available. For local that is the host (tools live
-    there, installed by `bootstrap`). For a container backend it is a container
-    running the tool image, which is built on demand and hash-verified before use; a
-    build failure is returned as a Failure."""
+    """A context with the tools available. For a local backend, that is the host (tools
+    live there, installed by `bootstrap`). For a container backend it is a container
+    running the tool image: a configured remote image, pulled and verified -- when one
+    is set and the backend can use it -- otherwise, the image built on demand and
+    hash-verified before use. A pull or build failure is returned as a Failure."""
     builder = backend.image_builder()
     if builder is None:
         return backend.context()
+
+    # if a remote image is configured, try to use it
+    configured = config.load().get("image")
+    if isinstance(configured, str) and configured:
+        puller = backend.image_puller()
+        if puller is not None:
+            reference = ensure_pulled(puller, resolve_remote_ref(configured))
+            if isinstance(reference, Failure):
+                return reference
+            return backend.context(reference)
+        logger.warning(
+            "the %s backend cannot use the configured remote image; building locally",
+            backend.name,
+        )
+
     reference = ensure_image(builder, build_spec(current_platform()))
     if isinstance(reference, Failure):
         return reference

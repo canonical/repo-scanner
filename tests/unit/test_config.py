@@ -15,7 +15,7 @@ from contextlib import contextmanager, redirect_stdout
 
 from repo_scanner import config
 from repo_scanner.cli import main
-from repo_scanner.commands.config_cmd import get_value, set_value
+from repo_scanner.commands.config_cmd import get_value, set_value, unset_value
 
 
 @contextmanager
@@ -54,6 +54,23 @@ def test_set_validates_the_key_and_value_before_persisting() -> None:
         assert config.load() == {"backend": "lxd"}
 
 
+def test_image_key_accepts_any_non_empty_reference() -> None:
+    with _isolated_config():
+        assert set_value("image", "  ") == 2  # empty/blank is rejected
+        assert config.load() == {}
+        assert set_value("image", "canonical") == 0  # the shorthand is accepted
+        assert set_value("image", "ghcr.io/acme/thing:1") == 0  # a full ref too
+        assert config.load()["image"] == "ghcr.io/acme/thing:1"
+
+
+def test_unset_removes_a_key_and_is_idempotent_and_rejects_unknown_keys() -> None:
+    with _isolated_config():
+        set_value("image", "canonical")
+        assert unset_value("image") == 0  # removes it
+        assert config.load() == {}
+        assert unset_value("image") == 0  # already absent: still success
+
+
 def test_get_prints_a_set_value_and_reports_a_missing_one() -> None:
     with _isolated_config():
         set_value("backend", "docker")
@@ -71,3 +88,5 @@ def test_config_set_then_get_round_trips_through_the_cli() -> None:
         with redirect_stdout(out):
             assert main(["config", "get", "backend"]) == 0
         assert out.getvalue().strip() == "docker"
+        assert main(["config", "unset", "backend"]) == 0
+        assert config.load() == {}
