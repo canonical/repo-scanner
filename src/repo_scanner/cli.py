@@ -76,6 +76,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Tools to install; their prerequisites are added automatically. "
         "Installs every tool when none are named.",
     )
+    bootstrap_parser.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Skip interactive confirmation before installing tools.",
+    )
 
     # SUBCOMMAND: INVOKE
     invoke_parser = subcommands.add_parser(
@@ -187,11 +192,19 @@ def _run_invoke(args: argparse.Namespace) -> int:
 
 
 def _run_bootstrap(args: argparse.Namespace) -> int:
-    """Install tools into a plain environment. Defaults to local (tools are useful on
-    the host); an explicit --backend installs into a plain container, not the image."""
+    """Install tools into a plain environment. Defaults to local. An explicit
+    --backend installs into a plain container, not the image.
+    A host install is confirmed first (unless --confirm), since it changes the host;
+    installing into a container needs no such confirmation."""
     with start_session(args.backend or "local", tool_image=False) as session:
         if not session.ok:
             return session.exit_code
+        if (
+            session.context.name == "local"
+            and not args.confirm
+            and not bootstrap_cmd.confirm_host_install()
+        ):
+            return 1
         return bootstrap_cmd.run_bootstrap(
             session.context, args.tools, current_platform(), session.tool_root
         )

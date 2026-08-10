@@ -7,6 +7,7 @@ subset; either way each tool's prerequisites (uv, the Go SDK) are pulled in
 automatically."""
 
 import logging
+import sys
 
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
@@ -15,6 +16,28 @@ from repo_scanner.tools.model import Platform, Tool
 from repo_scanner.tools.registry import TOOLS
 
 logger = logging.getLogger(__name__)
+
+
+def confirm_host_install() -> bool:
+    """Confirm whether to install the scanning tools."""
+    sys.stderr.write(
+        "'bootstrap' installs the scanning tools directly onto this host.\n"
+        "reposcan normally runs the tools inside an ephemeral container, so this is\n"
+        "not the usual path and it changes this system.\n"
+    )
+    if not sys.stdin.isatty():
+        logger.error(
+            "cannot ask for confirmation on a non-interactive terminal; re-run with "
+            "--confirm to install the tools on the host"
+        )
+        return False
+    sys.stderr.write("Install the tools on this host anyway? [y/N] ")
+    sys.stderr.flush()
+    try:
+        reply = input()
+    except EOFError:
+        return False
+    return reply.strip().lower() in ("y", "yes")
 
 
 def run_bootstrap(
