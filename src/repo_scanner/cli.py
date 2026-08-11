@@ -150,6 +150,11 @@ def build_parser() -> argparse.ArgumentParser:
     config_get.add_argument("key", nargs="?", default=None)
     config_unset = config_sub.add_parser("unset", help="Remove a config value.")
     config_unset.add_argument("key")
+    config_sub.add_parser("keys", help="List all supported config keys.")
+    config_options = config_sub.add_parser(
+        "options", help="List the supported values for a config key."
+    )
+    config_options.add_argument("key")
 
     # SUBCOMMAND: SCAN -- one subcommand per registered scan, built from its
     # declared summary and parameters (see scans/registry.py and scans/model.py).
@@ -201,11 +206,15 @@ def _command_argv(argv: list[str]) -> list[str]:
 
 
 def _run_config(args: argparse.Namespace) -> int:
-    """Get, set, or unset a config value."""
+    """Get, set, unset, or describe config values."""
     if args.config_command == "set":
         return config_cmd.set_value(args.key, args.value)
     if args.config_command == "unset":
         return config_cmd.unset_value(args.key)
+    if args.config_command == "keys":
+        return config_cmd.list_keys()
+    if args.config_command == "options":
+        return config_cmd.list_options(args.key)
     return config_cmd.get_value(args.key)
 
 
