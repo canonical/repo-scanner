@@ -194,6 +194,15 @@ def test_tool_context_uses_a_configured_remote_image_when_the_backend_can() -> N
         backends.ensure_image = saved_build
 
 
+def test_start_session_reports_the_local_mount_target() -> None:
+    # Local runs the source in place, so the session's target is the source itself.
+    with start_session(
+        "local", tool_image=True, mount_source="/host/acme-api"
+    ) as session:
+        assert session.ok
+        assert session.target == "/host/acme-api"
+
+
 def test_start_session_runs_on_the_started_context_or_reports_a_bad_backend() -> None:
     # Local is always available and needs no image, so the session runs on the host.
     with start_session("local", tool_image=True) as session:

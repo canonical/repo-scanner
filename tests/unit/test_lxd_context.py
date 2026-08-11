@@ -82,6 +82,17 @@ def test_launches_the_given_image_and_execs_commands_in_it() -> None:
     assert calls[-1] == expected
 
 
+def test_mounts_the_source_read_only_keeping_its_name() -> None:
+    # respond ok to every lxc call (project present, launch, device add).
+    with _patched_responses(lambda argv: ExecResult(0, "", "")) as calls:
+        ctx = LxdContext("reposcan-tools", mount_source="/host/acme-api")
+        assert ctx.start() is None
+    device_add = next(c for c in calls if c[3:6] == ["config", "device", "add"])
+    assert "source=/host/acme-api" in device_add
+    assert "path=/scan/acme-api" in device_add  # name preserved
+    assert "readonly=true" in device_add
+
+
 def test_ensure_project_leaves_an_existing_project_alone() -> None:
     # `lxc project show` succeeds -> the project is there -> no create, no failure.
     present = ExecResult(0, "name: reposcan\n", "")

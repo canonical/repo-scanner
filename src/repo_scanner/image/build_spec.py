@@ -13,6 +13,7 @@ and image/lxd.py.
 import hashlib
 from dataclasses import dataclass
 
+from repo_scanner.execution.context import MOUNT_PARENT
 from repo_scanner.tools.install import install_plan
 from repo_scanner.tools.model import Platform
 from repo_scanner.tools.registry import TOOLS
@@ -22,11 +23,15 @@ NAME = "reposcan"
 
 # The base image and in-image install location. Both feed the spec digest, so a
 # change to either yields a new image identity.
-BASE_IMAGE = "ubuntu:24.04"
+BASE_IMAGE = "ubuntu:26.04"
 INSTALL_ROOT = "/opt/reposcan"
 
-# Packages needed by the install commands that may not be in the base image
-_BASE_PACKAGES = ("curl", "ca-certificates")
+# Packages needed at build or scan time that may not be in the base image:
+_BASE_PACKAGES = (
+    "curl",  # for downloads
+    "ca-certificates",  # for downloads
+    "git",  # for tools that scan git history (trufflehog)
+)
 
 
 def build_script(platform: Platform, install_root: str = INSTALL_ROOT) -> str:
@@ -49,6 +54,8 @@ def build_script(platform: Platform, install_root: str = INSTALL_ROOT) -> str:
         "apt-get update",
         f"apt-get install -y --no-install-recommends {' '.join(_BASE_PACKAGES)}",
         "rm -rf /var/lib/apt/lists/*",
+        # fix git's "detected dubious ownership" error; recursive match needs git >=2.46
+        f"git config --system --add safe.directory '{MOUNT_PARENT}/*'",
     ]
     for step in install_plan(TOOLS.values(), platform, install_root):
         lines.append(f"# {step.tool.name} {step.tool.version}")

@@ -8,22 +8,31 @@ Uses the docker CLI (no SDK).
 
 from collections.abc import Mapping, Sequence
 
+from repo_scanner.execution.context import mounted_target
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 
 
 class DockerContext:
-    """Runs commands in an ephemeral container via `docker`, started from `image`."""
+    """Runs commands in an ephemeral container via `docker`, started from `image`.
+
+    When `mount_source` is given, that host directory is bind-mounted read-only at
+    `mounted_target(mount_source)` so a scan can reach the repository.
+    """
 
     name = "docker"
 
-    def __init__(self, image: str) -> None:
+    def __init__(self, image: str, mount_source: str | None = None) -> None:
         self._image = image
+        self._mount_source = mount_source
         self._instance_name: str | None = None
 
     def start(self) -> Failure | None:
-        result = run_process(
-            ["docker", "run", "-d", "--rm", self._image, "sleep", "infinity"]
-        )
+        argv = ["docker", "run", "-d", "--rm"]
+        if self._mount_source is not None:
+            src = self._mount_source
+            argv += ["-v", f"{src}:{mounted_target(src)}:ro"]
+        argv += [self._image, "sleep", "infinity"]
+        result = run_process(argv)
         if isinstance(result, Failure):
             return result
         if result.exit_code != 0:

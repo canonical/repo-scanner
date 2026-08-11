@@ -4,7 +4,7 @@
 """Integration tests for the container execution contexts.
 
 Unlike the unit tests, these invoke real docker / lxc and start real ephemeral
-ubuntu:24.04 containers. They are excluded from the default unit run
+ubuntu:26.04 containers. They are excluded from the default unit run
 (`testpaths = ["tests/unit"]`); run them explicitly with:
 
     tox run -f integration      (across the py310/py312/py314 matrix)
@@ -21,11 +21,13 @@ pytest yourself).
 """
 
 import logging
+import tempfile
+from pathlib import Path
 
 import pytest
 
 from repo_scanner.backends import DockerBackend, LxdBackend
-from repo_scanner.execution.context import ExecutionContext
+from repo_scanner.execution.context import ExecutionContext, mounted_target
 from repo_scanner.execution.process import ExecResult, Failure
 
 logger = logging.getLogger(__name__)
@@ -33,12 +35,12 @@ logger = logging.getLogger(__name__)
 
 def _exercise_lifecycle(ctx: ExecutionContext) -> None:
     """Run a series of commands in an already-started context and check that they
-    execute inside the ubuntu:24.04 container with cwd/env/exit-code honored."""
-    # Runs in the ubuntu:24.04 image, not on the host.
+    execute inside the ubuntu:26.04 container with cwd/env/exit-code honored."""
+    # Runs in the ubuntu:26.04 image, not on the host.
     os_release = ctx.run(["cat", "/etc/os-release"])
     assert isinstance(os_release, ExecResult), os_release
     assert os_release.ok
-    assert 'VERSION_ID="24.04"' in os_release.stdout
+    assert 'VERSION_ID="26.04"' in os_release.stdout
 
     # The command's exit code is propagated.
     exit_code = ctx.run(["sh", "-c", "exit 7"])
@@ -62,7 +64,7 @@ def test_docker_context_lifecycle() -> None:
     if not availability.ok:
         pytest.skip(f"docker unavailable: {availability.reason}")
 
-    logger.info("[docker] starting ubuntu:24.04 container")
+    logger.info("[docker] starting ubuntu:26.04 container")
     ctx = backend.context()
     started = ctx.start()
     assert started is None, f"docker run failed: {started}"
@@ -75,13 +77,37 @@ def test_docker_context_lifecycle() -> None:
     assert isinstance(ctx.run(["true"]), Failure)
 
 
+def test_docker_context_mounts_a_source_read_only() -> None:
+    backend = DockerBackend()
+    availability = backend.availability()
+    if not availability.ok:
+        pytest.skip(f"docker unavailable: {availability.reason}")
+
+    with tempfile.TemporaryDirectory() as source:
+        Path(source, "marker.txt").write_text("hello")
+        target = mounted_target(source)
+        logger.info("[docker] mounting %s at %s", source, target)
+        ctx = backend.context(mount_source=source)
+        assert ctx.start() is None
+        try:
+            # The mounted file is visible inside the container at the kept-name path.
+            seen = ctx.run(["cat", f"{target}/marker.txt"])
+            assert isinstance(seen, ExecResult) and seen.ok, seen
+            assert seen.stdout.strip() == "hello"
+            # The mount is read-only: writing into it fails.
+            write = ctx.run(["sh", "-c", f"echo x > {target}/new.txt"])
+            assert isinstance(write, ExecResult) and not write.ok, write
+        finally:
+            ctx.stop()
+
+
 def test_lxd_context_lifecycle() -> None:
     backend = LxdBackend()
     availability = backend.availability()
     if not availability.ok:
         pytest.skip(f"lxd unavailable: {availability.reason}")
 
-    logger.info("[lxd] launching ubuntu:24.04 container (may download the image)")
+    logger.info("[lxd] launching ubuntu:26.04 container (may download the image)")
     ctx = backend.context()
     started = ctx.start()
     # If this fails right after launch, the container may not be ready to exec yet

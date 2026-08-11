@@ -9,6 +9,7 @@ Uses the lxc CLI (no SDK).
 import os
 from collections.abc import Mapping, Sequence
 
+from repo_scanner.execution.context import mounted_target
 from repo_scanner.execution.firewall import warn_if_lxd_bridge_blocked
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 
@@ -57,8 +58,9 @@ class LxdContext:
 
     name = "lxd"
 
-    def __init__(self, image: str) -> None:
+    def __init__(self, image: str, mount_source: str | None = None) -> None:
         self._image = image
+        self._mount_source = mount_source
         self._instance_name: str | None = None
 
     def start(self) -> Failure | None:
@@ -73,7 +75,36 @@ class LxdContext:
         if result.exit_code != 0:
             return Failure(reason=result.stderr.strip() or "lxc launch failed")
         self._instance_name = handle
+        if self._mount_source is not None:
+            return self._mount(handle, self._mount_source)
         return None
+
+    def _mount(self, handle: str, mount_source: str) -> Failure | None:
+        """Attach `mount_source` read-only at `mounted_target(mount_source)`.
+
+        Args:
+            handle: The running instance to attach the disk to.
+            mount_source: The host directory to make available for scanning.
+
+        Returns:
+            None on success, or a Failure if the disk device could not be added.
+        """
+        add = run_process(
+            [
+                *LXC,
+                "config",
+                "device",
+                "add",
+                handle,
+                "scan",
+                "disk",
+                f"source={mount_source}",
+                f"path={mounted_target(mount_source)}",
+                "readonly=true",
+            ],
+            check=True,
+        )
+        return add if isinstance(add, Failure) else None
 
     def run(
         self,

@@ -45,3 +45,13 @@ def test_starts_the_given_image_and_execs_commands_in_it() -> None:
         ctx.run(["ls", "-a"], cwd="/src", env={"K": "V"})
     expected = ["docker", "exec", "-w", "/src", "-e", "K=V", "abc123", "ls", "-a"]
     assert calls[-1] == expected
+
+
+def test_mounts_the_source_read_only_keeping_its_name() -> None:
+    with _patched_run(ExecResult(0, "abc123\n", "")) as calls:
+        ctx = DockerContext("reposcan:tools", mount_source="/host/acme-api")
+        assert ctx.start() is None
+    run_argv = calls[-1]  # the `docker run` argv
+    assert "-v" in run_argv
+    mount = run_argv[run_argv.index("-v") + 1]
+    assert mount == "/host/acme-api:/scan/acme-api:ro"  # read-only, name preserved

@@ -14,10 +14,30 @@ captured output (whatever that exit code), or a Failure when the command could n
 be started or timed out.
 """
 
+import os
 from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 from repo_scanner.execution.process import ExecResult, Failure
+
+# Parent directory a scanned source is bind-mounted under inside a container. A fixed
+# parent (rather than the filesystem root) avoids colliding with system directories.
+MOUNT_PARENT = "/scan"
+
+
+def mounted_target(mount_source: str) -> str:
+    """Where a mounted source directory appears inside a container.
+
+    The source keeps its own directory name under `MOUNT_PARENT`, so tools that
+    surface the directory in their output show the real repository name.
+
+    Args:
+        mount_source: The host directory being mounted for scanning.
+
+    Returns:
+        The in-container path, e.g. `/scan/<basename>`.
+    """
+    return f"{MOUNT_PARENT}/{os.path.basename(os.path.realpath(mount_source))}"
 
 
 class ExecutionContext(Protocol):

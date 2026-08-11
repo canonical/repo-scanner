@@ -1,0 +1,48 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""Secrets scan fixture: a committed, non-real AWS key pair for trufflehog to find."""
+
+import subprocess
+from pathlib import Path
+
+from repo_scanner.scans import sarif
+from repo_scanner.scans.secrets import SecretsScan
+
+SCAN = SecretsScan()
+
+
+def plant(repo: Path) -> None:
+    # A well-formed but non-real AWS key pair, committed so a git-history scan finds
+    # it. Not the AWS "EXAMPLE" keys, which trufflehog filters as known placeholders.
+    (repo / "config.env").write_text(
+        "AWS_ACCESS_KEY_ID=AKIA5B7Q2XLMN3PQRSTU\n"
+        "AWS_SECRET_ACCESS_KEY=aBcD1eFgH2iJkL3mNoP4qRsT5uVwX6yZ7A8bC9dE\n"
+    )
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "add", "-A")
+    _git(
+        repo,
+        "-c",
+        "user.email=f@example.com",
+        "-c",
+        "user.name=f",
+        "commit",
+        "-qm",
+        "x",
+    )
+
+
+def verify(artifact: sarif.SarifDocument) -> None:
+    # trufflehog found the planted AWS key pair, reported in config.env by its AWS
+    # detector. The key is non-real so it stays unverified (level "warning").
+    results = artifact.results()
+    rules = [result["ruleId"] for result in results]
+    aws = [result for result in results if result["ruleId"] == "AWS"]
+    assert aws, f"expected an AWS finding, got rules {rules}"
+    location = aws[0]["locations"][0]["physicalLocation"]["artifactLocation"]
+    assert location["uri"].endswith("config.env"), location["uri"]
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)

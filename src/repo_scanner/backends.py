@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from repo_scanner import config
-from repo_scanner.execution.context import ExecutionContext
+from repo_scanner.execution.context import ExecutionContext, mounted_target
 from repo_scanner.execution.docker import DockerContext
 from repo_scanner.execution.local import LocalContext
 from repo_scanner.execution.lxd import LxdContext
@@ -67,7 +67,19 @@ class Backend(Protocol):
 
     def availability(self) -> Availability: ...
 
-    def context(self, image: str | None = None) -> ExecutionContext: ...
+    def context(
+        self, image: str | None = None, *, mount_source: str | None = None
+    ) -> ExecutionContext:
+        """A context to run in, optionally from `image`, with `mount_source` mounted.
+
+        Args:
+            image: The image to run, or None for the backend's default base.
+            mount_source: A host directory to make available for scanning, or None.
+
+        Returns:
+            An unstarted execution context.
+        """
+        ...
 
     def image_builder(self) -> ImageBuilder | None: ...
 
@@ -93,8 +105,10 @@ class LxdBackend:
     def availability(self) -> Availability:
         return _probe(["lxc", "info"])
 
-    def context(self, image: str | None = None) -> ExecutionContext:
-        return LxdContext(image or BASE_IMAGE)
+    def context(
+        self, image: str | None = None, *, mount_source: str | None = None
+    ) -> ExecutionContext:
+        return LxdContext(image or BASE_IMAGE, mount_source=mount_source)
 
     def image_builder(self) -> ImageBuilder:
         return LxdImageBuilder()
@@ -112,8 +126,10 @@ class DockerBackend:
     def availability(self) -> Availability:
         return _probe(["docker", "info"])
 
-    def context(self, image: str | None = None) -> ExecutionContext:
-        return DockerContext(image or BASE_IMAGE)
+    def context(
+        self, image: str | None = None, *, mount_source: str | None = None
+    ) -> ExecutionContext:
+        return DockerContext(image or BASE_IMAGE, mount_source=mount_source)
 
     def image_builder(self) -> ImageBuilder:
         return DockerImageBuilder()
@@ -131,8 +147,10 @@ class LocalBackend:
     def availability(self) -> Availability:
         return Availability(ok=True, reason="runs on the host")
 
-    def context(self, image: str | None = None) -> ExecutionContext:
-        return LocalContext()  # runs on the host; there is no image
+    def context(
+        self, image: str | None = None, *, mount_source: str | None = None
+    ) -> ExecutionContext:
+        return LocalContext()  # runs on the host; the mount source is used in place
 
     def image_builder(self) -> None:
         return None  # tools install onto the host, not into an image
@@ -186,7 +204,9 @@ def select_backend(requested: str | None) -> Backend | Failure:
     return Failure(reason="no execution backend is available")
 
 
-def tool_context(backend: Backend) -> ExecutionContext | Failure:
+def tool_context(
+    backend: Backend, mount_source: str | None = None
+) -> ExecutionContext | Failure:
     """A context with the tools available.
 
     For a local backend, that is the host. For a container backend, it is a container
@@ -195,13 +215,14 @@ def tool_context(backend: Backend) -> ExecutionContext | Failure:
 
     Args:
         backend: The backend to produce a tool context for.
+        mount_source: A host directory to make available for scanning, or None.
 
     Returns:
         A ready context, or a Failure if a pull or build failed.
     """
     builder = backend.image_builder()
     if builder is None:
-        return backend.context()
+        return backend.context(mount_source=mount_source)
 
     # if a remote image is configured, try to use it
     configured = config.load().get("image")
@@ -211,7 +232,7 @@ def tool_context(backend: Backend) -> ExecutionContext | Failure:
             reference = ensure_pulled(puller, resolve_remote_ref(configured))
             if isinstance(reference, Failure):
                 return reference
-            return backend.context(reference)
+            return backend.context(reference, mount_source=mount_source)
         logger.warning(
             "the %s backend cannot use the configured remote image; building locally",
             backend.name,
@@ -220,7 +241,7 @@ def tool_context(backend: Backend) -> ExecutionContext | Failure:
     reference = ensure_image(builder, build_spec(current_platform()))
     if isinstance(reference, Failure):
         return reference
-    return backend.context(reference)
+    return backend.context(reference, mount_source=mount_source)
 
 
 @dataclass(frozen=True)
@@ -235,6 +256,7 @@ class Session:
     _context: ExecutionContext | None
     tool_root: str
     exit_code: int
+    target: str | None = None  # where the scanned source is reachable in the context
 
     @property
     def ok(self) -> bool:
@@ -248,7 +270,7 @@ class Session:
 
 @contextmanager
 def start_session(
-    requested_backend: str | None, *, tool_image: bool
+    requested_backend: str | None, *, tool_image: bool, mount_source: str | None = None
 ) -> Generator[Session]:
     """Select a backend and start a context in it.
 
@@ -261,13 +283,18 @@ def start_session(
             environment, saved config, then 'auto'.
         tool_image: Use the verified tool image (built on demand) when True,
             else a plain container.
+        mount_source: A host directory to make available for scanning, or None. The
+            session's `target` reports where it is reachable in the context.
     """
     backend = select_backend(requested_backend)
     if isinstance(backend, Failure):
         logger.error(backend.reason)
         yield Session(None, "", 2)
         return
-    ctx = tool_context(backend) if tool_image else backend.context()
+    if tool_image:
+        ctx = tool_context(backend, mount_source)
+    else:
+        ctx = backend.context(mount_source=mount_source)
     if isinstance(ctx, Failure):
         logger.error(ctx.reason)
         yield Session(None, "", 1)
@@ -277,7 +304,14 @@ def start_session(
         logger.error(error.reason)
         yield Session(None, "", 1)
         return
+    # Local runs the source in place; a container mounts it under MOUNT_PARENT.
+    target = None
+    if mount_source is not None:
+        if backend.image_builder() is None:
+            target = mount_source
+        else:
+            target = mounted_target(mount_source)
     try:
-        yield Session(ctx, backend.tool_root(), 0)
+        yield Session(ctx, backend.tool_root(), 0, target)
     finally:
         ctx.stop()

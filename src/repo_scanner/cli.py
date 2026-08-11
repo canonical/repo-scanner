@@ -5,6 +5,8 @@
 
 import argparse
 import logging
+import os
+from typing import Any
 
 from repo_scanner.backends import BACKEND_NAMES, select_backend, start_session
 from repo_scanner.commands import (
@@ -13,10 +15,13 @@ from repo_scanner.commands import (
     exec_cmd,
     image_cmd,
     invoke_cmd,
+    scan_cmd,
     tools_cmd,
 )
 from repo_scanner.execution.process import Failure
 from repo_scanner.paths import tools_root
+from repo_scanner.scans.model import Scan, check_parameters
+from repo_scanner.scans.registry import SCANS
 from repo_scanner.tools.install import current_platform
 
 logger = logging.getLogger(__name__)
@@ -146,7 +151,37 @@ def build_parser() -> argparse.ArgumentParser:
     config_unset = config_sub.add_parser("unset", help="Remove a config value.")
     config_unset.add_argument("key")
 
+    # SUBCOMMAND: SCAN -- one subcommand per registered scan, built from its
+    # declared summary and parameters (see scans/registry.py and scans/model.py).
+    scan_parser = subcommands.add_parser("scan", help="Scan a repository.")
+    scan_subcmd = scan_parser.add_subparsers(dest="scan_command", required=True)
+    for scan_cls in SCANS.values():
+        _add_scan(scan_subcmd, scan_cls)
+
     return parser
+
+
+def _add_scan(
+    scan_sub: "argparse._SubParsersAction[argparse.ArgumentParser]",
+    scan_cls: type[Scan],
+) -> None:
+    """Add a `scan <name>` subcommand built from the scan's declared parameters."""
+    parser = scan_sub.add_parser(scan_cls.name, help=scan_cls.summary)
+    parser.add_argument("path", help="Path to the repository to scan.")
+    for param in scan_cls.parameters:
+        options: dict[str, Any] = {"help": param.help, "default": param.default}
+        if param.choices is not None:
+            options["choices"] = param.choices
+        if param.type is not None:
+            options["type"] = param.type
+        parser.add_argument(f"--{param.name}", **options)
+    parser.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        metavar="FILE",
+        help="Write the report to FILE instead of stdout.",
+    )
 
 
 class _LevelFormatter(logging.Formatter):
@@ -248,6 +283,31 @@ def _run_image_cache(args: argparse.Namespace) -> int:
     return image_cmd.run_cache_clear()  # clear
 
 
+def _run_scan(args: argparse.Namespace) -> int:
+    """Scan a repository: mount it into the tool image and run the scan's tools."""
+    path = os.path.abspath(args.path)
+    if not os.path.isdir(path):
+        logger.error("not a directory: %s", args.path)
+        return 2
+    scan_cls = SCANS[args.scan_command]
+    values = {param.name: getattr(args, param.name) for param in scan_cls.parameters}
+    invalid = check_parameters(scan_cls.parameters, values)
+    if invalid is not None:
+        logger.error("%s", invalid)
+        return 2
+    with start_session(args.backend, tool_image=True, mount_source=path) as session:
+        if not session.ok:
+            return session.exit_code
+        assert session.target is not None  # a source was given, so target is set
+        return scan_cmd.run_scan_command(
+            scan_cls(**values),
+            session.context,
+            session.target,
+            session.tool_root,
+            output=args.output,
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     handler = logging.StreamHandler()
     handler.setFormatter(_LevelFormatter())
@@ -268,5 +328,7 @@ def main(argv: list[str] | None = None) -> int:
             return _run_bootstrap(args)
         case "image":
             return _run_image(args)
+        case "scan":
+            return _run_scan(args)
         case _:  # unreachable: the parser rejects any other command
             return 2
