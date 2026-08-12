@@ -8,7 +8,7 @@ Uses the docker CLI (no SDK).
 
 from collections.abc import Mapping, Sequence
 
-from repo_scanner.execution.context import mounted_target
+from repo_scanner.execution.context import as_user, home_for, mounted_target
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 
 
@@ -46,6 +46,7 @@ class DockerContext:
         *,
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
+        uid: int | None = None,
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
@@ -55,7 +56,12 @@ class DockerContext:
         argv = ["docker", "exec"]
         if cwd is not None:
             argv += ["-w", cwd]
-        for key, value in sorted((env or {}).items()):
+        run_env = dict(env or {})
+        command = list(command)
+        if uid is not None:
+            run_env.setdefault("HOME", home_for(uid))
+            command = as_user(command, uid)
+        for key, value in sorted(run_env.items()):
             argv += ["-e", f"{key}={value}"]
         argv += [self._instance_name, *command]
         return run_process(

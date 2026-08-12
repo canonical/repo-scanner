@@ -18,6 +18,7 @@ from repo_scanner.commands import (
     scan_cmd,
     tools_cmd,
 )
+from repo_scanner.execution.context import SCAN_UID
 from repo_scanner.execution.process import Failure
 from repo_scanner.paths import tools_root
 from repo_scanner.scans import output
@@ -41,6 +42,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Execution backend to run in. Overrides $REPOSCAN_BACKEND and the "
         "saved config; if unset, falls back to those, then to auto.",
+    )
+    parser.add_argument(
+        "--uid",
+        type=int,
+        default=SCAN_UID,
+        metavar="UID",
+        help="UID for all in-backend processes. Ignored by the local backend.",
     )
 
     # SUBCOMMANDS
@@ -337,6 +345,7 @@ def _run_scan(args: argparse.Namespace) -> int:
             fmt=fmt,
             limit=args.limit,
             wrap=args.wrap,
+            uid=args.uid,
         )
 
 

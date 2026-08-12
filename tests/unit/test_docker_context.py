@@ -49,6 +49,17 @@ def test_starts_the_given_image_and_execs_commands_in_it() -> None:
     assert calls[-1] == expected
 
 
+def test_a_uid_drops_privileges_via_setpriv() -> None:
+    with _patched_run(ExecResult(0, "abc123\n", "")) as calls:
+        ctx = DockerContext("reposcan:tools")
+        assert ctx.start() is None
+        ctx.run(["trivy", "fs", "."], cwd="/scan/acme", uid=10000)
+    exec_argv = calls[-1]
+    assert "HOME=/home/reposcan" in exec_argv  # the scan user's home for tool caches
+    assert "setpriv" in exec_argv and "--reuid=10000" in exec_argv  # dropped to the uid
+    assert exec_argv[-3:] == ["trivy", "fs", "."]  # the real command, after setpriv --
+
+
 def test_mounts_the_source_read_only_keeping_its_name() -> None:
     with _patched_run(ExecResult(0, "abc123\n", "")) as calls:
         ctx = DockerContext("reposcan:tools", mount_source="/host/acme-api")

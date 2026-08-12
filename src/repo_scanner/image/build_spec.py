@@ -13,7 +13,12 @@ and image/lxd.py.
 import hashlib
 from dataclasses import dataclass
 
-from repo_scanner.execution.context import MOUNT_PARENT
+from repo_scanner.execution.context import (
+    MOUNT_PARENT,
+    SCAN_GID,
+    SCAN_UID,
+    SCAN_USER,
+)
 from repo_scanner.tools.install import install_plan
 from repo_scanner.tools.model import Platform
 from repo_scanner.tools.registry import TOOLS
@@ -56,10 +61,17 @@ def build_script(platform: Platform, install_root: str = INSTALL_ROOT) -> str:
         "rm -rf /var/lib/apt/lists/*",
         # fix git's "detected dubious ownership" error; recursive match needs git >=2.46
         f"git config --system --add safe.directory '{MOUNT_PARENT}/*'",
+        # create an unprivileged user for later use
+        f"groupadd --gid {SCAN_GID} {SCAN_USER}",
+        f"useradd --create-home --uid {SCAN_UID} --gid {SCAN_GID} "
+        # --shell nologin since it is only ever setpriv'd into.
+        f"--shell /usr/sbin/nologin {SCAN_USER}",
     ]
     for step in install_plan(TOOLS.values(), platform, install_root):
         lines.append(f"# {step.tool.name} {step.tool.version}")
         lines.extend(step.commands)
+    # tools are installed as root; make them readable and executable by the scan user.
+    lines.append(f"chmod -R a+rX {install_root}")
     return "\n".join(lines) + "\n"
 
 

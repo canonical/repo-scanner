@@ -27,6 +27,7 @@ class LocalContext:
         *,
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
+        uid: int | None = None,  # ignored: local runs as the invoking user
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,

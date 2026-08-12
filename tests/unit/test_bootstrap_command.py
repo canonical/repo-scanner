@@ -38,6 +38,7 @@ class _FakeContext:
         *,
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
+        uid: int | None = None,
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,

@@ -9,7 +9,7 @@ Uses the lxc CLI (no SDK).
 import os
 from collections.abc import Mapping, Sequence
 
-from repo_scanner.execution.context import mounted_target
+from repo_scanner.execution.context import as_user, home_for, mounted_target
 from repo_scanner.execution.firewall import warn_if_lxd_bridge_blocked
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 
@@ -112,6 +112,7 @@ class LxdContext:
         *,
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
+        uid: int | None = None,
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
@@ -121,7 +122,12 @@ class LxdContext:
         argv = [*LXC, "exec", self._instance_name]
         if cwd is not None:
             argv += ["--cwd", cwd]
-        for key, value in sorted((env or {}).items()):
+        run_env = dict(env or {})
+        command = list(command)
+        if uid is not None:
+            run_env.setdefault("HOME", home_for(uid))
+            command = as_user(command, uid)
+        for key, value in sorted(run_env.items()):
             argv += ["--env", f"{key}={value}"]
         argv += ["--", *command]
         return run_process(

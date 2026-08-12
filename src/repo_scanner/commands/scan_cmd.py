@@ -11,7 +11,7 @@ and maps the outcome to an exit code: 0 when the scan ran and found nothing,
 import logging
 from pathlib import Path
 
-from repo_scanner.execution.context import ExecutionContext
+from repo_scanner.execution.context import SCAN_UID, ExecutionContext
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import output
 from repo_scanner.scans.model import ArtifactKind, Scan, run_scan
@@ -32,6 +32,7 @@ def run_scan_command(
     fmt: output.Format | None = None,
     limit: int = output.DEFAULT_ROW_LIMIT,
     wrap: bool = False,
+    uid: int = SCAN_UID,
 ) -> int:
     """Run `scan` against `target`, emit the artifact, and return an exit code.
 
@@ -44,6 +45,7 @@ def run_scan_command(
         fmt: The output format, or None for the default.
         limit: The maximum number of rows to show in a table.
         wrap: When True, wrap long table cells across multiple lines.
+        uid: The user id each tool runs as (container backends only).
 
     Returns:
         For a findings scan (SARIF): 0 when it found nothing, 3 when it found
@@ -60,7 +62,7 @@ def run_scan_command(
         )
         return 2
 
-    artifact = run_scan(scan, ctx, target, tool_root, stream=True)
+    artifact = run_scan(scan, ctx, target, tool_root, stream=True, uid=uid)
     if isinstance(artifact, Failure):
         logger.error(artifact.reason)
         return 1

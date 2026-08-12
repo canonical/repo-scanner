@@ -12,13 +12,18 @@ the scan to consolidate.
 """
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
-from repo_scanner.execution.context import ExecutionContext
+from repo_scanner.execution.context import SCAN_UID, ExecutionContext
 from repo_scanner.execution.process import ExecResult, Failure
+from repo_scanner.scans.exclude import (
+    EXCLUDABLE_TOOLS,
+    IgnoredPaths,
+    build_exclude_flags,
+)
 from repo_scanner.tools.registry import TOOLS
 
 logger = logging.getLogger(__name__)
@@ -55,16 +60,21 @@ class ToolInvocation:
 
     Some tools exit non-zero to signal findings rather than an error (e.g.
     govulncheck exits 3); `ok_codes` lists the exit codes that mean success, so
-    run_scan does not mistake findings for a failure. `cwd` runs the tool in that
-    directory (some analysers must run inside the target). `optional` marks a tool
-    that may not apply to every repo (e.g. govulncheck on a non-Go repo): its
-    failure is logged and skipped rather than failing the whole scan.
+    run_scan does not mistake findings for a failure. `cwd` overrides the working
+    directory the tool runs in; when None it defaults to the target repo.
+    `env` adds environment variables for the run. `output_file` names a file the tool
+    writes its result to, for tools whose stdout is unreliable: run_scan reads that
+    file and uses its content as the tool's output instead of the tool's stdout.
+    `optional` marks a tool that may not apply to every repo (e.g. govulncheck on a
+    non-Go repo): its failure is logged and skipped rather than failing the whole scan.
     """
 
     tool: str
     args: list[str]
     ok_codes: tuple[int, ...] = (0,)
     cwd: str | None = None
+    env: Mapping[str, str] | None = None
+    output_file: str | None = None
     optional: bool = False
 
 
@@ -180,6 +190,7 @@ def run_scan(
     tool_root: str,
     *,
     stream: bool = False,
+    uid: int = SCAN_UID,
 ) -> Artifact | Failure:
     """Run `scan`'s tool invocations in `ctx` and consolidate their outputs.
 
@@ -195,19 +206,33 @@ def run_scan(
         stream: When True, echo each tool's live progress (its stderr) to the console
             as it runs. Each tool's stdout (its results) is captured but not echoed,
             so streaming never dumps the report to the console.
+        uid: The user id for all in-container processes. Must exist in the image.
 
     Returns:
         The scan's consolidated artifact, or the first Failure encountered.
     """
+    invocations = scan.invocations(target)
+    # identify gitignore'd paths
+    ignored = (
+        IgnoredPaths.from_context(ctx, target)
+        if any(invocation.tool in EXCLUDABLE_TOOLS for invocation in invocations)
+        else IgnoredPaths()
+    )
     results: list[ToolResult] = []
-    for invocation in scan.invocations(target):
+    for invocation in invocations:
         tool = TOOLS.get(invocation.tool)
         if tool is None:
             return Failure(reason=f"unknown tool: {invocation.tool}")
         executable = tool.installed_path(tool_root)
         result = ctx.run(
-            [executable, *invocation.args],
-            cwd=invocation.cwd,
+            [
+                executable,
+                *invocation.args,
+                *build_exclude_flags(invocation.tool, ignored),
+            ],
+            cwd=invocation.cwd or target,
+            env=invocation.env,
+            uid=uid,
             stream_stdout=False,
             stream_stderr=stream,
         )
@@ -222,5 +247,22 @@ def run_scan(
                 logger.warning("skipping %s: %s", invocation.tool, reason)
                 continue
             return Failure(reason=f"{invocation.tool} failed: {reason}")
+        if invocation.output_file is not None:
+            content = _cat(ctx, invocation.output_file, invocation.cwd or target)
+            if content is None:
+                note = f"{invocation.tool} wrote no output to {invocation.output_file}"
+                if invocation.optional:
+                    logger.warning("%s", note)
+                    continue
+                return Failure(reason=note)
+            result = ExecResult(result.exit_code, content, result.stderr)
         results.append(ToolResult(invocation.tool, result))
     return scan.consolidate(results)
+
+
+def _cat(ctx: ExecutionContext, path: str, cwd: str) -> str | None:
+    """The text content of `path` inside `ctx`, or None if it could not be read."""
+    result = ctx.run(["cat", path], cwd=cwd)
+    if isinstance(result, ExecResult) and result.exit_code == 0:
+        return result.stdout
+    return None

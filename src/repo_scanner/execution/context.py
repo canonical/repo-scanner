@@ -24,6 +24,40 @@ from repo_scanner.execution.process import ExecResult, Failure
 # parent (rather than the filesystem root) avoids colliding with system directories.
 MOUNT_PARENT = "/scan"
 
+# default unprivileged user for in-container processes
+SCAN_USER = "reposcan"
+SCAN_UID = 10000
+SCAN_GID = 10000
+SCAN_HOME = "/home/reposcan"
+
+
+def as_user(command: Sequence[str], uid: int) -> list[str]:
+    """`command` wrapped so it runs as `uid`.
+
+    Prefixes `setpriv`, which drops the (root) caller to `uid` (with the same gid) and
+    then execs the command. setpriv leaves the environment and working directory
+    untouched, so the command still sees the env and cwd it was given. `uid` must
+    exist in the image for `--init-groups` to resolve its groups.
+    """
+    return [
+        "setpriv",
+        f"--reuid={uid}",
+        f"--regid={uid}",
+        "--init-groups",
+        "--",
+        *command,
+    ]
+
+
+def home_for(uid: int) -> str:
+    """The HOME to give a command running as `uid` (for tool caches).
+
+    The built-in scan user has a real home; any other uid gets `/tmp`, which is
+    world-writable so tools can still write their caches.
+    """
+    homes = {SCAN_UID: SCAN_HOME, 0: "/root"}
+    return homes.get(uid) or "/tmp"
+
 
 def mounted_target(mount_source: str) -> str:
     """Where a mounted source directory appears inside a container.
@@ -57,9 +91,17 @@ class ExecutionContext(Protocol):
         *,
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
+        uid: int | None = None,
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
-    ) -> ExecResult | Failure: ...
+    ) -> ExecResult | Failure:
+        """Run `command`, returning its result or a Failure.
+
+        `uid`, when set, runs the command as that user id (container backends only;
+        the local context ignores it and runs as the invoking user). None runs as the
+        context's default (root in a container).
+        """
+        ...
 
     def stop(self) -> None: ...

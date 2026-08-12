@@ -19,6 +19,7 @@ def test_script_sets_up_the_base_installs_every_tool_and_is_valid_shell() -> Non
     assert (
         "apt-get install -y --no-install-recommends curl ca-certificates git" in script
     )
+    assert "useradd" in script and "reposcan" in script  # unprivileged scan user
     for name in ("uv", "go", "semgrep", "govulncheck", "trufflehog", "cdxgen"):
         assert f"# {name} " in script  # a section header per tool, prerequisites too
     # The aggregation of heredocs, && chains, and per-tool commands must parse.
