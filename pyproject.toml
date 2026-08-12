@@ -54,6 +54,23 @@ commands = [
     ["ruff", "format", "--check", "{tox_root}/src", "{tox_root}/tests"],
 ]
 
+[tool.tox.env.fmt]
+description = "Run ruff's auto-formatter"
+allowlist_externals = ["sh"]
+skip_install = true
+recreate = true
+deps = ["-r{tox_root}/requirements/lint.txt"]
+commands = [
+    [
+      "ruff", "check", "--fix",
+      "{tox_root}/src", "{tox_root}/tests"
+    ],
+    [
+      "ruff", "format",
+      "{tox_root}/src", "{tox_root}/tests"
+    ],
+]
+
 [tool.tox.env.type]
 description = "Type-check with basedpyright"
 recreate = true
