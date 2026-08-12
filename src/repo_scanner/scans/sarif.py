@@ -39,7 +39,9 @@ def merge(sources: list[tuple[str, "SarifDocument"]]) -> "SarifDocument":
 
     Each result is annotated with a properties.scanners list naming the scanners
     that reported it; results with the same rule and primary location are merged
-    into one (their scanner lists combined) rather than duplicated.
+    into one (their scanner lists combined) rather than duplicated. The original
+    rules for each result are carried onto the merged driver, so their metadata
+    is not lost.
 
     Args:
         sources: (scanner_name, SarifDocument) pairs.
@@ -49,32 +51,45 @@ def merge(sources: list[tuple[str, "SarifDocument"]]) -> "SarifDocument":
     """
     by_key: dict[tuple[str, str, int], dict[str, Any]] = {}
     order: list[tuple[str, str, int]] = []
+    rules_by_id: dict[str, dict[str, Any]] = {}
     for scanner, document in sources:
-        for result in document.results():
-            key = _result_key(result)
-            if key in by_key:
-                _record_scanner(by_key[key], scanner)
-                continue
-            copied = copy.deepcopy(result)
-            _record_scanner(copied, scanner)
-            by_key[key] = copied
-            order.append(key)
+        for run in document.to_dict().get("runs", []):
+            for rule in run.get("tool", {}).get("driver", {}).get("rules", []):
+                rule_id = str(rule.get("id", ""))
+                if rule_id and rule_id not in rules_by_id:
+                    rules_by_id[rule_id] = rule
+            for result in run.get("results", []):
+                key = _result_key(result)
+                if key in by_key:
+                    _record_scanner(by_key[key], scanner)
+                    continue
+                copied = copy.deepcopy(result)
+                # ruleIndex points into one run's rule list; results also reference
+                # rules by id, so drop the now-meaningless index after combining runs.
+                copied.pop("ruleIndex", None)
+                _record_scanner(copied, scanner)
+                by_key[key] = copied
+                order.append(key)
+    results = [by_key[key] for key in order]
+    referenced = {str(result.get("ruleId", "")) for result in results}
+    rules = [rules_by_id[rule_id] for rule_id in rules_by_id if rule_id in referenced]
+    driver: dict[str, Any] = {"name": "reposcan"}
+    if rules:
+        driver["rules"] = rules
     return SarifDocument(
         {
             "$schema": SCHEMA,
             "version": "2.1.0",
-            "runs": [
-                {
-                    "tool": {"driver": {"name": "reposcan"}},
-                    "results": [by_key[key] for key in order],
-                }
-            ],
+            "runs": [{"tool": {"driver": driver}, "results": results}],
         }
     )
 
 
 def parse(text: str) -> "SarifDocument | None":
     """The SARIF document a tool printed, or None if `text` is not a SARIF document.
+
+    Each result's effective level is standardized onto the result at ingestion (see
+    `_standardize_levels`), so downstream the level always lives in one place.
 
     Args:
         text: A tool's stdout, expected to be a SARIF JSON document.
@@ -87,6 +102,7 @@ def parse(text: str) -> "SarifDocument | None":
     except json.JSONDecodeError:
         return None
     if isinstance(document, dict) and isinstance(document.get("runs"), list):
+        _standardize_levels(document)
         return SarifDocument(document)
     return None
 
@@ -100,14 +116,15 @@ class SarifResult:
         message: A human-readable description of the finding.
         uri: The file the finding is in, relative to the scanned repository.
         start_line: The 1-based line of the finding, or 0 if unknown.
-        level: The SARIF level ("error", "warning", "note").
+        level: The SARIF level ("error", "warning", "note"); defaults to the SARIF
+            default of "warning" when a finding's severity is not set.
     """
 
     rule_id: str
     message: str
     uri: str
     start_line: int
-    level: str = "error"
+    level: str = "warning"
 
     def to_dict(self) -> dict[str, Any]:
         """Render this result as a SARIF result object."""
@@ -176,3 +193,70 @@ class SarifDocument:
     def count(self) -> int:
         """The number of findings across every run."""
         return len(self.results())
+
+    def rows(self) -> tuple[list[str], list[list[str]]]:
+        """A table of findings, most severe first: level, rule, location, message.
+
+        A result's level is standardized onto it at ingestion (see
+        `_standardize_levels`); the default guards results built another way.
+        """
+        headers = ["LEVEL", "RULE", "LOCATION", "MESSAGE"]
+        findings = [
+            [
+                str(result.get("level") or "warning"),
+                str(result.get("ruleId", "")),
+                _location(result),
+                str(result.get("message", {}).get("text", "")),
+            ]
+            for result in self.results()
+        ]
+        findings.sort(key=lambda finding: _level_rank(finding[0]))
+        return headers, findings
+
+
+# SARIF severity levels from most to least severe; unlisted levels sort last.
+_LEVEL_RANK = {"error": 0, "warning": 1, "note": 2, "none": 3}
+
+
+def _level_rank(level: str) -> int:
+    """The sort rank of a SARIF level: lower is more severe, so it sorts first."""
+    return _LEVEL_RANK.get(level, len(_LEVEL_RANK))
+
+
+def _rule_levels(run: dict[str, Any]) -> dict[str, str]:
+    """Each rule id mapped to its configured level, from a run's tool driver rules."""
+    levels: dict[str, str] = {}
+    for rule in run.get("tool", {}).get("driver", {}).get("rules", []):
+        rule_id = str(rule.get("id", ""))
+        level = rule.get("defaultConfiguration", {}).get("level")
+        if rule_id and level:
+            levels[rule_id] = str(level)
+    return levels
+
+
+def _standardize_levels(document: dict[str, Any]) -> None:
+    """Set each result's effective SARIF level explicitly on the result, in place.
+
+    A result may carry its level directly (zizmor, our own findings) or inherit it
+    from the rule's configuration (semgrep); one with neither takes the SARIF default
+    of "warning". Resolving it once here keeps the level in one place -- on the
+    result -- for every reader, and it survives a later merge unchanged.
+    """
+    for run in document.get("runs", []):
+        rule_levels = _rule_levels(run)
+        for result in run.get("results", []):
+            if not result.get("level"):
+                result["level"] = rule_levels.get(
+                    str(result.get("ruleId", "")), "warning"
+                )
+
+
+def _location(result: dict[str, Any]) -> str:
+    """The 'uri:line' of a result's primary location, or '' if it has none."""
+    locations = result.get("locations") or []
+    if not locations:
+        return ""
+    physical = locations[0].get("physicalLocation", {})
+    uri = str(physical.get("artifactLocation", {}).get("uri", ""))
+    line = physical.get("region", {}).get("startLine")
+    return f"{uri}:{line}" if line else uri

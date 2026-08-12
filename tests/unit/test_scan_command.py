@@ -21,6 +21,7 @@ from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import cyclonedx, sarif
 from repo_scanner.scans.model import Artifact
+from repo_scanner.scans.output import Format
 from repo_scanner.scans.secrets import SecretsScan
 
 
@@ -44,13 +45,18 @@ def _patched_run_scan(outcome: Artifact | Failure) -> Iterator[None]:
         scan_cmd.run_scan = saved
 
 
-def _run(outcome: Artifact | Failure, *, output: str | None = None) -> tuple[int, str]:
+def _run(
+    outcome: Artifact | Failure,
+    *,
+    output: str | None = None,
+    fmt: Format | None = None,
+) -> tuple[int, str]:
     out = io.StringIO()
     # run_scan is patched, so the context is never touched; cast a placeholder.
     ctx = cast(ExecutionContext, None)
     with _patched_run_scan(outcome), redirect_stdout(out):
         code = scan_cmd.run_scan_command(
-            SecretsScan(), ctx, "/scan/x", "/opt/reposcan", output=output
+            SecretsScan(), ctx, "/scan/x", "/opt/reposcan", output_file=output, fmt=fmt
         )
     return code, out.getvalue()
 
@@ -59,15 +65,21 @@ def test_sbom_artifact_always_exits_zero() -> None:
     # An SBOM is an inventory, not pass/fail: even with components it exits 0.
     code, out = _run(_sbom_artifact(5))
     assert code == 0
-    assert "CycloneDX" in out
+    assert "COMPONENT" in out and "c0" in out  # the default stdout table
 
 
 def test_exit_zero_when_no_findings_and_three_when_findings() -> None:
     code, out = _run(_sarif_artifact(0))
     assert code == 0
-    assert "sarif" in out.lower()  # the report is written to stdout
+    assert "LEVEL" in out  # the default stdout table's header
     code, _ = _run(_sarif_artifact(2))
     assert code == 3  # findings
+
+
+def test_format_json_overrides_the_stdout_table_default() -> None:
+    code, out = _run(_sarif_artifact(1), fmt=Format.JSON)
+    assert code == 3
+    assert json.loads(out)["version"] == "2.1.0"  # native SARIF, not a table
 
 
 def test_a_scan_failure_returns_one() -> None:

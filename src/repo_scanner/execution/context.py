@@ -58,6 +58,8 @@ class ExecutionContext(Protocol):
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        stream_stdout: bool = False,
+        stream_stderr: bool = False,
     ) -> ExecResult | Failure: ...
 
     def stop(self) -> None: ...

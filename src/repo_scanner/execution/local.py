@@ -28,9 +28,18 @@ class LocalContext:
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        stream_stdout: bool = False,
+        stream_stderr: bool = False,
     ) -> ExecResult | Failure:
         run_env = None if env is None else {**os.environ, **env}
-        return run_process(command, cwd=cwd, env=run_env, timeout=timeout)
+        return run_process(
+            command,
+            cwd=cwd,
+            env=run_env,
+            timeout=timeout,
+            stream_stdout=stream_stdout,
+            stream_stderr=stream_stderr,
+        )
 
     def stop(self) -> None:
         return None

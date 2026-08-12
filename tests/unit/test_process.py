@@ -32,20 +32,22 @@ def test_the_ways_a_run_can_fail_become_failures() -> None:
     assert isinstance(slow, Failure) and slow.timed_out
 
 
-def test_stream_tees_output_live_while_still_capturing_and_reporting_failures() -> None:
+def test_streams_tee_output_live_while_still_capturing_and_reporting_failures() -> None:
     program = "import sys; print('out'); sys.stderr.write('err\\n'); exit(4)"
     live_out, live_err = io.StringIO(), io.StringIO()
     with redirect_stdout(live_out), redirect_stderr(live_err):
-        result = run_process([sys.executable, "-c", program], stream=True)
+        result = run_process(
+            [sys.executable, "-c", program], stream_stdout=True, stream_stderr=True
+        )
     assert isinstance(result, ExecResult) and result.exit_code == 4
     assert result.stdout.strip() == "out" and result.stderr.strip() == "err"  # captured
     assert "out" in live_out.getvalue() and "err" in live_err.getvalue()  # echoed live
 
     with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
         boom = "import sys; sys.stderr.write('boom\\n'); raise SystemExit(3)"
-        bad = run_process([sys.executable, "-c", boom], check=True, stream=True)
+        bad = run_process([sys.executable, "-c", boom], check=True, stream_stderr=True)
         sleep = [sys.executable, "-c", "import time; time.sleep(5)"]
-        slow = run_process(sleep, timeout=0.5, stream=True)
+        slow = run_process(sleep, timeout=0.5, stream_stderr=True)
     # bad's reason is the captured stderr, even though it was also shown live.
     assert isinstance(bad, Failure) and "boom" in bad.reason
     assert isinstance(slow, Failure) and slow.timed_out

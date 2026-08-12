@@ -16,10 +16,11 @@ import importlib
 import importlib.util
 import logging
 import pkgutil
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Protocol, cast, runtime_checkable
 
 import pytest
 
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
+@runtime_checkable
 class _FixtureModule(Protocol):
     """The contract every fixture file under fixtures/ provides."""
 
@@ -93,7 +95,11 @@ def _run_fixture(name: str, fixture: _FixtureModule) -> None:
             assert session.ok, f"session failed for {name} (exit {session.exit_code})"
             assert session.target is not None
             artifact = run_scan(
-                fixture.SCAN, session.context, session.target, session.tool_root
+                fixture.SCAN,
+                session.context,
+                session.target,
+                session.tool_root,
+                stream=True,
             )
             assert not isinstance(artifact, Failure), f"{name}: {artifact}"
             fixture.verify(artifact)
@@ -105,3 +111,17 @@ def test_docker_scan_fixtures_report_findings() -> None:
         pytest.skip(f"docker unavailable: {availability.reason}")
     for name, fixture in sorted(_load_fixtures().items()):
         _run_fixture(name, fixture)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    if len(sys.argv) <= 1:
+        test_docker_scan_fixtures_report_findings()
+    else:
+        target = sys.argv[1]
+        fixture = _load_fixtures().get(target)
+        if isinstance(fixture, _FixtureModule):
+            _run_fixture(target, fixture)
+            logger.info("%s passed", target)
+        else:
+            logger.error("No fixture found for %s!", target)

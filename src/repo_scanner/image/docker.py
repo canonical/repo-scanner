@@ -44,5 +44,7 @@ class DockerImageBuilder:
             Path(context, "install.sh").write_text(spec.script)
             Path(context, "Dockerfile").write_text(dockerfile)
             build = ["docker", "build", "-t", tag, context]
-            result = run_process(build, check=True, stream=True)
+            result = run_process(
+                build, check=True, stream_stdout=True, stream_stderr=True
+            )
         return result if isinstance(result, Failure) else tag

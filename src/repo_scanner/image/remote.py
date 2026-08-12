@@ -57,7 +57,9 @@ class DockerRemote:
     name = "docker"
 
     def pull(self, ref: str) -> Failure | None:
-        result = run_process(["docker", "pull", ref], check=True, stream=True)
+        result = run_process(
+            ["docker", "pull", ref], check=True, stream_stdout=True, stream_stderr=True
+        )
         return result if isinstance(result, Failure) else None
 
     def identity(self, ref: str) -> str | None:

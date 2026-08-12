@@ -24,6 +24,8 @@ def _patched_run(result: ExecResult | Failure):
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        stream_stdout: bool = False,
+        stream_stderr: bool = False,
     ) -> ExecResult | Failure:
         calls.append(list(command))
         return result

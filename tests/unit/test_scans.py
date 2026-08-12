@@ -26,6 +26,7 @@ class _FakeContext:
     def __init__(self, result: ExecResult | Failure) -> None:
         self._result = result
         self.commands: list[list[str]] = []
+        self.streamed: list[tuple[bool, bool]] = []
 
     def start(self) -> Failure | None:
         return None
@@ -37,8 +38,11 @@ class _FakeContext:
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        stream_stdout: bool = False,
+        stream_stderr: bool = False,
     ) -> ExecResult | Failure:
         self.commands.append(list(command))
+        self.streamed.append((stream_stdout, stream_stderr))
         return self._result
 
     def stop(self) -> None:
@@ -72,3 +76,11 @@ def test_run_scan_reports_a_nonzero_tool_exit_as_a_failure() -> None:
     result = run_scan(_FakeScan(), ctx, "/scan/acme", "/opt/reposcan")
     assert isinstance(result, Failure)
     assert "trufflehog failed" in result.reason
+
+
+def test_run_scan_streams_tool_progress_but_not_its_stdout() -> None:
+    ctx = _FakeContext(ExecResult(0, "", ""))
+    run_scan(_FakeScan(), ctx, "/scan/acme", "/opt/reposcan", stream=True)
+    # (stream_stdout, stream_stderr): the tool's stderr (progress) streams, its
+    # stdout (results) is captured but not echoed.
+    assert ctx.streamed == [(False, True)]

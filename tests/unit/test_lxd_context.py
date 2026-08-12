@@ -24,6 +24,8 @@ def _patched_run(result: ExecResult | Failure):
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        stream_stdout: bool = False,
+        stream_stderr: bool = False,
     ) -> ExecResult | Failure:
         calls.append(list(command))
         return result
@@ -53,7 +55,8 @@ def _patched_responses(respond: Callable[[list[str]], ExecResult | Failure]):
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
         check: bool = False,
-        stream: bool = False,
+        stream_stdout: bool = False,
+        stream_stderr: bool = False,
     ) -> ExecResult | Failure:
         calls.append(list(command))
         return respond(list(command))

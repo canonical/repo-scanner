@@ -44,6 +44,10 @@ class Artifact(Protocol):
         """The number of entries the artifact holds (findings, or components)."""
         ...
 
+    def rows(self) -> tuple[list[str], list[list[str]]]:
+        """A table view of the artifact: column headers and one row per entry."""
+        ...
+
 
 @dataclass(frozen=True)
 class ToolInvocation:
@@ -170,7 +174,12 @@ class Scan(Protocol):
 
 
 def run_scan(
-    scan: Scan, ctx: ExecutionContext, target: str, tool_root: str
+    scan: Scan,
+    ctx: ExecutionContext,
+    target: str,
+    tool_root: str,
+    *,
+    stream: bool = False,
 ) -> Artifact | Failure:
     """Run `scan`'s tool invocations in `ctx` and consolidate their outputs.
 
@@ -183,6 +192,9 @@ def run_scan(
         ctx: The started context to run the tools in.
         target: The repository path as seen in the context.
         tool_root: Where the tools are installed in the context.
+        stream: When True, echo each tool's live progress (its stderr) to the console
+            as it runs. Each tool's stdout (its results) is captured but not echoed,
+            so streaming never dumps the report to the console.
 
     Returns:
         The scan's consolidated artifact, or the first Failure encountered.
@@ -193,7 +205,12 @@ def run_scan(
         if tool is None:
             return Failure(reason=f"unknown tool: {invocation.tool}")
         executable = tool.installed_path(tool_root)
-        result = ctx.run([executable, *invocation.args], cwd=invocation.cwd)
+        result = ctx.run(
+            [executable, *invocation.args],
+            cwd=invocation.cwd,
+            stream_stdout=False,
+            stream_stderr=stream,
+        )
         if isinstance(result, Failure):
             if invocation.optional:
                 logger.warning("%s did not run: %s", invocation.tool, result.reason)

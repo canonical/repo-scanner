@@ -31,7 +31,8 @@ def _patched(respond: Callable[[list[str]], ExecResult | Failure]):
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
         check: bool = False,
-        stream: bool = False,
+        stream_stdout: bool = False,
+        stream_stderr: bool = False,
     ) -> ExecResult | Failure:
         calls.append(list(command))
         return respond(list(command))

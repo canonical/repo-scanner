@@ -20,6 +20,7 @@ from repo_scanner.commands import (
 )
 from repo_scanner.execution.process import Failure
 from repo_scanner.paths import tools_root
+from repo_scanner.scans import output
 from repo_scanner.scans.model import Scan, check_parameters
 from repo_scanner.scans.registry import SCANS
 from repo_scanner.tools.install import current_platform
@@ -187,6 +188,24 @@ def _add_scan(
         metavar="FILE",
         help="Write the report to FILE instead of stdout.",
     )
+    parser.add_argument(
+        "--format",
+        choices=[fmt.value for fmt in output.Format],
+        default=None,
+        help="Output format: 'table' or 'json'.",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=output.DEFAULT_ROW_LIMIT,
+        metavar="N",
+        help=f"Maximum rows shown in the table (default: {output.DEFAULT_ROW_LIMIT}).",
+    )
+    parser.add_argument(
+        "--wrap",
+        action="store_true",
+        help="Wrap long table cells across multiple lines instead of truncating.",
+    )
 
 
 class _LevelFormatter(logging.Formatter):
@@ -308,12 +327,16 @@ def _run_scan(args: argparse.Namespace) -> int:
         if not session.ok:
             return session.exit_code
         assert session.target is not None  # a source was given, so target is set
+        fmt = output.Format(args.format) if args.format else None
         return scan_cmd.run_scan_command(
             scan_cls(**values),
             session.context,
             session.target,
             session.tool_root,
-            output=args.output,
+            output_file=args.output,
+            fmt=fmt,
+            limit=args.limit,
+            wrap=args.wrap,
         )
 
 

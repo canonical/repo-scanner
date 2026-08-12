@@ -51,7 +51,10 @@ class LxdImageBuilder:
         alias = self.reference(spec)
         handle = f"{NAME}-build-{os.getpid()}"
         launched = run_process(
-            [*LXC, "launch", spec.base_image, handle], check=True, stream=True
+            [*LXC, "launch", spec.base_image, handle],
+            check=True,
+            stream_stdout=True,
+            stream_stderr=True,
         )
         if isinstance(launched, Failure):
             return launched
@@ -69,7 +72,8 @@ class LxdImageBuilder:
         ready = run_process(
             [*LXC, "exec", handle, "--", "cloud-init", "status", "--wait"],
             check=True,
-            stream=True,
+            stream_stdout=True,
+            stream_stderr=True,
         )
         if isinstance(ready, Failure):
             return ready
@@ -87,7 +91,9 @@ class LxdImageBuilder:
                 [*LXC, "publish", handle, "--alias", alias],
             ]
             for argv in steps:
-                result = run_process(argv, check=True, stream=True)
+                result = run_process(
+                    argv, check=True, stream_stdout=True, stream_stderr=True
+                )
                 if isinstance(result, Failure):
                     return result
         return None

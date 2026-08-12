@@ -39,6 +39,8 @@ class _FakeContext:
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        stream_stdout: bool = False,
+        stream_stderr: bool = False,
     ) -> ExecResult | Failure:
         script = command[-1]  # sh -euc <script>
         self.scripts.append(script)

@@ -47,6 +47,8 @@ class DockerContext:
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        stream_stdout: bool = False,
+        stream_stderr: bool = False,
     ) -> ExecResult | Failure:
         if self._instance_name is None:
             return Failure(reason="container is not started")
@@ -56,7 +58,12 @@ class DockerContext:
         for key, value in sorted((env or {}).items()):
             argv += ["-e", f"{key}={value}"]
         argv += [self._instance_name, *command]
-        return run_process(argv, timeout=timeout)
+        return run_process(
+            argv,
+            timeout=timeout,
+            stream_stdout=stream_stdout,
+            stream_stderr=stream_stderr,
+        )
 
     def stop(self) -> None:
         if self._instance_name is not None:

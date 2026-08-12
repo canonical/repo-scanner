@@ -95,9 +95,14 @@ def run_process(
     env: Mapping[str, str] | None = None,
     timeout: float | None = None,
     check: bool = False,
-    stream: bool = False,
+    stream_stdout: bool = False,
+    stream_stderr: bool = False,
 ) -> ExecResult | Failure:
     """Run `command` and return its outcome as an ExecResult or Failure.
+
+    Both stdout and stderr are always captured into the returned ExecResult. The
+    stream flags additionally echo a pipe to this process's console as it runs, for
+    live progress.
 
     With `check`, a nonzero exit is itself a Failure, so a returned ExecResult has
     always exited 0 (like `subprocess.run(check=True)`, but returned rather than
@@ -109,8 +114,8 @@ def run_process(
         env: Environment for the process, or None to inherit this process's.
         timeout: Seconds to wait before killing the process, or None for no limit.
         check: When True, treat a nonzero exit as a Failure rather than an ExecResult.
-        stream: When True, also echo the command's output to this process's console
-            as it runs.
+        stream_stdout: When True, echo the command's stdout live as it runs.
+        stream_stderr: When True, echo the command's stderr live as it runs.
 
     Returns:
         An ExecResult with the exit code and captured output when the process ran to
@@ -136,8 +141,8 @@ def run_process(
         return Failure(reason=f"could not start {argv[0]}: {exc}")
 
     assert process.stdout is not None and process.stderr is not None
-    out = _Tee(process.stdout, sys.stdout if stream else None)
-    err = _Tee(process.stderr, sys.stderr if stream else None)
+    out = _Tee(process.stdout, sys.stdout if stream_stdout else None)
+    err = _Tee(process.stderr, sys.stderr if stream_stderr else None)
     readers = [threading.Thread(target=out.drain), threading.Thread(target=err.drain)]
     for reader in readers:
         reader.start()

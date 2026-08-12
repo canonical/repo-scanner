@@ -78,6 +78,15 @@ def test_scan_subcommands_are_built_from_declared_parameters() -> None:
         assert args.flavor == "plain" and args.level is None
 
 
+def test_scan_accepts_output_format_and_limit_options() -> None:
+    with _only_fake_scan():
+        parser = build_parser()
+        args = parser.parse_args(
+            ["scan", "faux", "/repo", "--format", "json", "--limit", "5", "--wrap"]
+        )
+        assert args.format == "json" and args.limit == 5 and args.wrap is True
+
+
 def test_scan_parameter_requirement_is_enforced() -> None:
     with _only_fake_scan(), tempfile.TemporaryDirectory() as repo:
         # --level requires --flavor rich; with the default flavor it is rejected,

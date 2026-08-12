@@ -3,18 +3,17 @@
 
 """The `reposcan scan` command: run a scan and emit its artifact.
 
-Runs the scan in the started context, writes the SARIF report (to a file or
-stdout), and maps the outcome to an exit code: 0 when the scan ran and found
-nothing, 3 when it found something, 1 on a scan or tool error.
+Runs the scan in the started context, emits the result through the output module,
+and maps the outcome to an exit code: 0 when the scan ran and found nothing,
+3 when it found something, 1 on a scan or tool error.
 """
 
-import json
 import logging
-import sys
 from pathlib import Path
 
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
+from repo_scanner.scans import output
 from repo_scanner.scans.model import ArtifactKind, Scan, run_scan
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,10 @@ def run_scan_command(
     target: str,
     tool_root: str,
     *,
-    output: str | None,
+    output_file: str | None,
+    fmt: output.Format | None = None,
+    limit: int = output.DEFAULT_ROW_LIMIT,
+    wrap: bool = False,
 ) -> int:
     """Run `scan` against `target`, emit the artifact, and return an exit code.
 
@@ -38,34 +40,35 @@ def run_scan_command(
         ctx: The started context the scan's tools run in.
         target: The repository path as seen in the context.
         tool_root: Where the tools are installed in the context.
-        output: A file to write the report to, or None for stdout.
+        output_file: A file to write the report to, or None for stdout.
+        fmt: The output format, or None for the default.
+        limit: The maximum number of rows to show in a table.
+        wrap: When True, wrap long table cells across multiple lines.
 
     Returns:
         For a findings scan (SARIF): 0 when it found nothing, 3 when it found
-        something. For an inventory scan (SBOM/CycloneDX): 0. 2 when `output`
+        something. For an inventory scan (SBOM/CycloneDX): 0. 2 when `output_file`
         already exists (it is not overwritten). 1 on a scan or tool error, or if
         the report could not be written.
     """
-    # Refuse to clobber an existing report, and check before the (slow) scan runs.
-    if output is not None and Path(output).exists():
-        logger.error("output file already exists, refusing to overwrite: %s", output)
+    # Fail fast before the (slow) scan if the report file already exists. This is
+    # only a courtesy check: emit refuses to overwrite atomically at write time, so
+    # a file appearing during the scan is still caught (as a write Failure below).
+    if output_file is not None and Path(output_file).exists():
+        logger.error(
+            "output file already exists, refusing to overwrite: %s", output_file
+        )
         return 2
 
-    artifact = run_scan(scan, ctx, target, tool_root)
+    artifact = run_scan(scan, ctx, target, tool_root, stream=True)
     if isinstance(artifact, Failure):
         logger.error(artifact.reason)
         return 1
 
-    report = json.dumps(artifact.to_dict(), indent=2) + "\n"
-    if output is not None:
-        try:
-            Path(output).write_text(report)
-        except OSError as exc:
-            logger.error("could not write %s: %s", output, exc)
-            return 1
-    else:
-        # The report is the command's output; diagnostics go to the log (stderr).
-        sys.stdout.write(report)
+    failure = output.emit(artifact, output=output_file, fmt=fmt, limit=limit, wrap=wrap)
+    if isinstance(failure, Failure):
+        logger.error(failure.reason)
+        return 1
 
     if artifact.kind is ArtifactKind.CYCLONEDX:
         # An SBOM is an inventory, not pass/fail: report the size, always exit 0.
