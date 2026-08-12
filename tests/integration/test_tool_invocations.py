@@ -84,6 +84,7 @@ def _invoke(ctx: ExecutionContext, name: str, args: list[str]) -> tuple[int, str
 def _probe_every_tool_in(backend: Backend) -> None:
     availability = backend.availability()
     if not availability.ok:
+        logger.warning(availability.reason)
         pytest.skip(f"{backend.name} unavailable: {availability.reason}")
     assert set(_VERSION_PROBE) == set(TOOLS)  # probe table matches the tool set
 

@@ -62,6 +62,7 @@ def test_docker_context_lifecycle() -> None:
     backend = DockerBackend()
     availability = backend.availability()
     if not availability.ok:
+        logger.warning(availability.reason)
         pytest.skip(f"docker unavailable: {availability.reason}")
 
     logger.info("[docker] starting ubuntu:26.04 container")
@@ -81,6 +82,7 @@ def test_docker_context_mounts_a_source_read_only() -> None:
     backend = DockerBackend()
     availability = backend.availability()
     if not availability.ok:
+        logger.warning(availability.reason)
         pytest.skip(f"docker unavailable: {availability.reason}")
 
     with tempfile.TemporaryDirectory() as source:
@@ -105,6 +107,7 @@ def test_lxd_context_lifecycle() -> None:
     backend = LxdBackend()
     availability = backend.availability()
     if not availability.ok:
+        logger.warning(availability.reason)
         pytest.skip(f"lxd unavailable: {availability.reason}")
 
     logger.info("[lxd] launching ubuntu:26.04 container (may download the image)")

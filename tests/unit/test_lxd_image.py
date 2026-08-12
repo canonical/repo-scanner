@@ -62,7 +62,8 @@ def test_build_launches_provisions_publishes_and_cleans_up() -> None:
         alias = _BUILDER.build(_SPEC)
     assert alias == f"reposcan-{_SPEC.short_digest}"
     assert isinstance(alias, str) and ":" not in alias  # LXD aliases cannot use a colon
-    assert calls[0][:4] == [*_LXC, "launch"]
+    assert calls[0][:5] == [*_LXC, "image", "delete"]  # clear any stale alias first
+    assert calls[1][:4] == [*_LXC, "launch"]
     assert calls[-2][:4] == [*_LXC, "publish"] and "--alias" in calls[-2]
     assert alias in calls[-2]
     assert calls[-1][:4] == [*_LXC, "delete"]  # build container removed last

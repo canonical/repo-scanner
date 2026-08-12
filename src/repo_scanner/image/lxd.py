@@ -49,6 +49,8 @@ class LxdImageBuilder:
             return project_error
         # A build container is always deleted afterwards, success or not.
         alias = self.reference(spec)
+        # Remove any preexisting container with the same alias
+        run_process([*LXC, "image", "delete", alias])
         handle = f"{NAME}-build-{os.getpid()}"
         launched = run_process(
             [*LXC, "launch", spec.base_image, handle],

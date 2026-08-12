@@ -87,7 +87,7 @@ commands = [[
   "pytest", "{tox_root}/tests/integration", "-s", "--log-cli-level=INFO",
   { replace = "posargs", default = [], extend = true }
 ]]
-pass_env = ["HOME", "DOCKER_HOST", "XDG_RUNTIME_DIR"]
+pass_env = ["HOME", "DOCKER_HOST", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"]
 
 [tool.tox.env.scans]
 description = "Test scans against known-bad content fixtures"
