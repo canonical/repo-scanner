@@ -29,6 +29,15 @@ from repo_scanner.tools.install import current_platform
 
 logger = logging.getLogger(__name__)
 
+# The --verbosity choices, mapped to their logging levels. "info" is the default.
+LOG_LEVELS = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+    "critical": logging.CRITICAL,
+}
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -37,6 +46,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # GLOBAL OPTIONS
+    parser.add_argument(
+        "-v",
+        "--verbosity",
+        choices=list(LOG_LEVELS),
+        default="info",
+        help="Lowest log level written to stderr (default: info).",
+    )
     parser.add_argument(
         "--backend",
         choices=BACKEND_NAMES,
@@ -191,6 +207,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formats = [fmt.value for fmt in output.Format]
     render_parser.add_argument(
+        "-f",
         "--format",
         choices=formats,
         default=None,
@@ -242,6 +259,7 @@ def _add_scan(
     )
     formats = [fmt.value for fmt in output.Format]
     parser.add_argument(
+        "-f",
         "--format",
         choices=formats,
         default=None,
@@ -408,10 +426,10 @@ def _run_scan(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     handler = logging.StreamHandler()
     handler.setFormatter(_LevelFormatter())
-    logging.basicConfig(level=logging.INFO, handlers=[handler])
-    args = build_parser().parse_args(argv)
+    logging.basicConfig(level=LOG_LEVELS[args.verbosity], handlers=[handler])
 
     # The parser guarantees args.command is one of these subcommands.
     match args.command:

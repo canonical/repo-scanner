@@ -3,6 +3,7 @@
 
 """Tests for CLI argument parsing and dispatch (repo_scanner.cli)."""
 
+import logging
 import sys
 import tempfile
 from collections.abc import Iterator
@@ -11,7 +12,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 import repo_scanner.cli as cli
-from repo_scanner.cli import build_parser, main
+from repo_scanner.cli import LOG_LEVELS, build_parser, main
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import sarif
 from repo_scanner.scans.model import (
@@ -33,6 +34,18 @@ def test_backend_is_a_global_option_before_the_subcommand() -> None:
 def test_main_dispatches_to_the_command_and_returns_its_exit_code() -> None:
     prog = [sys.executable, "-c", "raise SystemExit(5)"]
     assert main(["--backend", "local", "exec", "--", *prog]) == 5
+
+
+def test_verbosity_defaults_to_info_and_sets_the_root_log_level() -> None:
+    assert build_parser().parse_args(["tools"]).verbosity == "info"
+
+    saved = logging.getLogger().level
+    try:
+        prog = [sys.executable, "-c", ""]
+        main(["--verbosity", "warning", "--backend", "local", "exec", "--", *prog])
+        assert logging.getLogger().level == LOG_LEVELS["warning"]
+    finally:
+        logging.getLogger().setLevel(saved)
 
 
 @dataclass(frozen=True)
