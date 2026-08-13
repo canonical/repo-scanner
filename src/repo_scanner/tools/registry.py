@@ -72,6 +72,10 @@ UV = NativeBinary(
     ),
 )
 
+# Subdirectory of the install root where uv keeps its managed Python interpreters
+# (via UV_PYTHON_INSTALL_DIR). Kept under the install root for unified perms mgmt.
+UV_PYTHON_SUBDIR = "python"
+
 # The Go toolchain: an ordinary native binary. Its download is a multi-file tree, so
 # it is kept whole and its `go` executable is symlinked to bin/go (which still finds
 # GOROOT). Go tools name it in `requires`.

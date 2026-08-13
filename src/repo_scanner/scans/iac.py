@@ -31,6 +31,7 @@ class IacScan:
     name: ClassVar[str] = "iac"
     summary: ClassVar[str] = "Infrastructure-as-code checks with checkov."
     parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
+    resolves_dependencies: ClassVar[bool] = False
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The single checkov invocation for `target`.

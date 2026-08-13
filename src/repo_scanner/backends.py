@@ -11,7 +11,11 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from repo_scanner import config
-from repo_scanner.execution.context import ExecutionContext, mounted_target
+from repo_scanner.execution.context import (
+    RESOLVED_PARENT,
+    ExecutionContext,
+    mounted_target,
+)
 from repo_scanner.execution.docker import DockerContext
 from repo_scanner.execution.local import LocalContext
 from repo_scanner.execution.lxd import LxdContext
@@ -26,7 +30,7 @@ from repo_scanner.image.remote import (
     ensure_pulled,
     resolve_remote_ref,
 )
-from repo_scanner.paths import tools_root
+from repo_scanner.paths import resolve_cache, tools_root
 from repo_scanner.tools.install import current_platform
 
 logger = logging.getLogger(__name__)
@@ -98,6 +102,15 @@ class Backend(Protocol):
         """
         ...
 
+    def get_resolved_parent(self) -> str:
+        """The directory dependency resolution copies a repo under for this backend.
+
+        A user-writable cache dir for local, the in-image RESOLVED_PARENT for a
+        container. Parallels `tool_root`: a host path locally, an image path in a
+        container.
+        """
+        ...
+
 
 class LxdBackend:
     name = "lxd"
@@ -118,6 +131,9 @@ class LxdBackend:
 
     def tool_root(self) -> str:
         return INSTALL_ROOT
+
+    def get_resolved_parent(self) -> str:
+        return RESOLVED_PARENT
 
 
 class DockerBackend:
@@ -140,6 +156,9 @@ class DockerBackend:
     def tool_root(self) -> str:
         return INSTALL_ROOT
 
+    def get_resolved_parent(self) -> str:
+        return RESOLVED_PARENT
+
 
 class LocalBackend:
     name = "local"
@@ -160,6 +179,11 @@ class LocalBackend:
 
     def tool_root(self) -> str:
         return str(tools_root())
+
+    def get_resolved_parent(self) -> str:
+        # A user-writable cache dir: the host has no root-provisioned scratch dir,
+        # and resolution must not mutate the user's actual repo.
+        return str(resolve_cache())
 
 
 # Backends in selection-precedence order: containers preferred, local last.
@@ -257,6 +281,7 @@ class Session:
     tool_root: str
     exit_code: int
     target: str | None = None  # where the scanned source is reachable in the context
+    resolved_parent: str = ""  # where dependency resolution copies the repo
 
     @property
     def ok(self) -> bool:
@@ -312,6 +337,8 @@ def start_session(
         else:
             target = mounted_target(mount_source)
     try:
-        yield Session(ctx, backend.tool_root(), 0, target)
+        yield Session(
+            ctx, backend.tool_root(), 0, target, backend.get_resolved_parent()
+        )
     finally:
         ctx.stop()

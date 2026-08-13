@@ -24,6 +24,12 @@ from repo_scanner.execution.process import ExecResult, Failure
 # parent (rather than the filesystem root) avoids colliding with system directories.
 MOUNT_PARENT = "/scan"
 
+# Parent directory that dependency resolution copies a repo into (as "<parent>/<repo
+# name>", preserving the name so scan-output locations read naturally). The copy is
+# writable, unlike the read-only mount. Set up in the image: owned by the scan user
+# and trusted by git.
+RESOLVED_PARENT = "/resolved-deps"
+
 # default unprivileged user for in-container processes
 SCAN_USER = "reposcan"
 SCAN_UID = 10000

@@ -170,6 +170,7 @@ class Scan(Protocol):
     name: ClassVar[str]
     summary: ClassVar[str]
     parameters: ClassVar[tuple[Parameter, ...]]
+    resolves_dependencies: ClassVar[bool] = False
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The tool invocations to run against `target`.

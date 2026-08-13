@@ -27,6 +27,7 @@ class SastScan:
     name: ClassVar[str] = "sast"
     summary: ClassVar[str] = "Static analysis of source with semgrep."
     parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
+    resolves_dependencies: ClassVar[bool] = False
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The single semgrep invocation for `target`.

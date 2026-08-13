@@ -15,13 +15,14 @@ from dataclasses import dataclass
 
 from repo_scanner.execution.context import (
     MOUNT_PARENT,
+    RESOLVED_PARENT,
     SCAN_GID,
     SCAN_UID,
     SCAN_USER,
 )
 from repo_scanner.tools.install import install_plan
 from repo_scanner.tools.model import Platform
-from repo_scanner.tools.registry import TOOLS
+from repo_scanner.tools.registry import TOOLS, UV_PYTHON_SUBDIR
 
 # The image name that built images are tagged/aliased under (with the spec digest).
 NAME = "reposcan"
@@ -56,16 +57,27 @@ def build_script(platform: Platform, install_root: str = INSTALL_ROOT) -> str:
         "#!/bin/sh",
         "set -eu",
         "export DEBIAN_FRONTEND=noninteractive",
+        # PyPI tools install into uv venvs whose interpreter is uv's managed Python.
+        # By default uv puts that under root's home (mode 0700), which the unprivileged
+        # scan user cannot read, so its stdlib import fails ("No module named
+        # 'encodings'"). Keep it under install_root, which the chmod below opens up.
+        f'export UV_PYTHON_INSTALL_DIR="{install_root}/{UV_PYTHON_SUBDIR}"',
         "apt-get update",
         f"apt-get install -y --no-install-recommends {' '.join(_BASE_PACKAGES)}",
         "rm -rf /var/lib/apt/lists/*",
         # fix git's "detected dubious ownership" error; recursive match needs git >=2.46
         f"git config --system --add safe.directory '{MOUNT_PARENT}/*'",
+        # dependency resolution copies the repo here; git ls-files (exclusion) runs on
+        # the copy, so trust it too.
+        f"git config --system --add safe.directory '{RESOLVED_PARENT}/*'",
         # create an unprivileged user for later use
         f"groupadd --gid {SCAN_GID} {SCAN_USER}",
         f"useradd --create-home --uid {SCAN_UID} --gid {SCAN_GID} "
         # --shell nologin since it is only ever setpriv'd into.
         f"--shell /usr/sbin/nologin {SCAN_USER}",
+        # the resolution copy dir, owned by the scan user so it can write copies there.
+        f"mkdir -p {RESOLVED_PARENT}",
+        f"chown {SCAN_UID}:{SCAN_GID} {RESOLVED_PARENT}",
     ]
     for step in install_plan(TOOLS.values(), platform, install_root):
         lines.append(f"# {step.tool.name} {step.tool.version}")

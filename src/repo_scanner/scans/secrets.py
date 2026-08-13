@@ -50,6 +50,7 @@ class SecretsScan:
             requires={"mode": "history"},
         ),
     )
+    resolves_dependencies: ClassVar[bool] = False
     mode: str = "history"
     depth: int | None = None
 

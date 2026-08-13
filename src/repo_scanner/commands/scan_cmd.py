@@ -15,6 +15,7 @@ from repo_scanner.execution.context import SCAN_UID, ExecutionContext
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import output
 from repo_scanner.scans.model import ArtifactKind, Scan, run_scan
+from repo_scanner.scans.resolve import resolve_dependencies
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,8 @@ def run_scan_command(
     limit: int = output.DEFAULT_ROW_LIMIT,
     wrap: bool = False,
     uid: int = SCAN_UID,
+    resolved_parent: str = "",
+    allow_code_execution: bool = False,
 ) -> int:
     """Run `scan` against `target`, emit the artifact, and return an exit code.
 
@@ -46,6 +49,10 @@ def run_scan_command(
         limit: The maximum number of rows to show in a table.
         wrap: When True, wrap long table cells across multiple lines.
         uid: The user id each tool runs as (container backends only).
+        resolved_parent: The backend's directory to copy the repo under for
+            dependency resolution (SBOM/SCA scans).
+        allow_code_execution: Passed to dependency resolution (SBOM/SCA scans): permit
+            building source packages, which runs untrusted code.
 
     Returns:
         For a findings scan (SARIF): 0 when it found nothing, 3 when it found
@@ -62,6 +69,15 @@ def run_scan_command(
         )
         return 2
 
+    if scan.resolves_dependencies:
+        target = resolve_dependencies(
+            ctx,
+            target,
+            tool_root,
+            resolved_parent,
+            uid=uid,
+            allow_code_execution=allow_code_execution,
+        )
     artifact = run_scan(scan, ctx, target, tool_root, stream=True, uid=uid)
     if isinstance(artifact, Failure):
         logger.error(artifact.reason)

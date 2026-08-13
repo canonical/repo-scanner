@@ -8,12 +8,6 @@ against the real, full-size tool outputs under `fixtures/`: a SARIF document
 (`sast.json`) and a CycloneDX SBOM (`sbom.json`). Rendering each to a sqlite
 database and back to JSON must reproduce the original document byte-for-byte in
 structure, proving the normalized database faithfully reconstructs real reports.
-
-Excluded from the default unit run (`testpaths = ["tests/unit"]`); run with:
-
-    tox run -f integration      (across the py310/py312/py314 matrix)
-    OR
-    pytest tests/integration -s --log-cli-level=INFO
 """
 
 import io

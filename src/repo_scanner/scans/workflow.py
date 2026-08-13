@@ -27,6 +27,7 @@ class WorkflowScan:
     name: ClassVar[str] = "workflow"
     summary: ClassVar[str] = "Audit CI/CD workflows with zizmor and poutine."
     parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
+    resolves_dependencies: ClassVar[bool] = False
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The zizmor and poutine invocations for `target`.

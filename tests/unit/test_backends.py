@@ -139,6 +139,23 @@ def test_only_container_backends_provide_an_image_builder() -> None:
     assert _backend("local").image_builder() is None  # local installs onto the host
 
 
+def test_resolved_parent_is_the_image_dir_for_containers_and_a_cache_for_local() -> (
+    None
+):
+    assert DockerBackend().get_resolved_parent() == "/resolved-deps"
+    assert LxdBackend().get_resolved_parent() == "/resolved-deps"
+    saved = os.environ.get("XDG_CACHE_HOME")
+    os.environ["XDG_CACHE_HOME"] = "/tmp/xdg-cache"
+    try:
+        local = LocalBackend().get_resolved_parent()
+    finally:
+        if saved is None:
+            del os.environ["XDG_CACHE_HOME"]
+        else:
+            os.environ["XDG_CACHE_HOME"] = saved
+    assert local == "/tmp/xdg-cache/reposcan/resolved"
+
+
 def test_tool_context_local_on_host_container_in_the_verified_image() -> None:
     # Local: tools are on the host, no image is built.
     assert isinstance(tool_context(LocalBackend()), LocalContext)

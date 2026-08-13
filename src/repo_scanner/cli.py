@@ -402,6 +402,7 @@ def _run_scan(args: argparse.Namespace) -> int:
             limit=args.limit,
             wrap=args.wrap,
             uid=args.uid,
+            resolved_parent=session.resolved_parent,
             allow_code_execution=args.allow_code_execution,
         )
 
