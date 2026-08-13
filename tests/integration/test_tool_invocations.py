@@ -16,6 +16,10 @@ Excluded from the default unit run; invoke explicitly:
     OR
     pytest tests/integration -s --log-cli-level=INFO
 
+Pass `--short` (e.g. `tox run -f integration -- --short`) to reuse an existing
+tool image when it still verifies instead of forcing a rebuild, which skips the
+slow LXD image build on re-runs.
+
 Skipped when a backend is unavailable. Slow: the image build downloads and installs
 every tool, so the first run per backend can take several minutes. The build output
 streams live to the console (-s keeps pytest from capturing it) and each tool
@@ -28,7 +32,12 @@ import logging
 import os
 import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager, redirect_stderr, redirect_stdout
+from contextlib import (
+    contextmanager,
+    nullcontext,
+    redirect_stderr,
+    redirect_stdout,
+)
 
 import pytest
 
@@ -81,7 +90,7 @@ def _invoke(ctx: ExecutionContext, name: str, args: list[str]) -> tuple[int, str
     return code, out.getvalue() + err.getvalue()
 
 
-def _probe_every_tool_in(backend: Backend) -> None:
+def _probe_every_tool_in(backend: Backend, *, force_rebuild: bool = False) -> None:
     availability = backend.availability()
     if not availability.ok:
         logger.warning(availability.reason)
@@ -90,10 +99,12 @@ def _probe_every_tool_in(backend: Backend) -> None:
 
     builder = backend.image_builder()
     assert builder is not None, f"{backend.name} builds no images"
-    with _isolated_cache():
-        # A real, verified, force-rebuilt image; then invoke every tool inside it.
-        logger.info("[%s] building tool image; output follows", backend.name)
-        reference = ensure_image(builder, build_spec(current_platform()), force=True)
+    with _isolated_cache() if force_rebuild else nullcontext():
+        action = "reusing" if force_rebuild else "building"
+        logger.info("[%s] %s tool image; output follows", backend.name, action)
+        reference = ensure_image(
+            builder, build_spec(current_platform()), force=force_rebuild
+        )
         assert not isinstance(reference, Failure), reference
         logger.info("[%s] starting container from %s", backend.name, reference)
         ctx = backend.context(reference)
@@ -110,9 +121,11 @@ def _probe_every_tool_in(backend: Backend) -> None:
             ctx.stop()
 
 
-def test_every_tool_runs_in_the_docker_image() -> None:
-    _probe_every_tool_in(DockerBackend())
+def test_every_tool_runs_in_the_docker_image(request: pytest.FixtureRequest) -> None:
+    short = bool(request.config.getoption("--short"))
+    _probe_every_tool_in(DockerBackend(), force_rebuild=not short)
 
 
-def test_every_tool_runs_in_the_lxd_image() -> None:
-    _probe_every_tool_in(LxdBackend())
+def test_every_tool_runs_in_the_lxd_image(request: pytest.FixtureRequest) -> None:
+    short = bool(request.config.getoption("--short"))
+    _probe_every_tool_in(LxdBackend(), force_rebuild=not short)
