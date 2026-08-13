@@ -1448,5 +1448,132 @@
         "write-permissions"
       ]
     }
+  ],
+  "formulation": [
+    {
+      "bom-ref": "reposcan-scan",
+      "workflows": [
+        {
+          "bom-ref": "reposcan-trivy-0",
+          "uid": "trivy-0",
+          "name": "trivy 0.72.0",
+          "taskTypes": [
+            "scan"
+          ],
+          "steps": [
+            {
+              "name": "trivy",
+              "commands": [
+                {
+                  "executed": "/opt/reposcan/bin/trivy fs --format cyclonedx /resolved-deps/repo-scanner --skip-dirs .pytest_cache --skip-dirs .ruff_cache --skip-dirs .tox --skip-dirs .venv --skip-dirs src/repo_scanner/__pycache__ --skip-dirs src/repo_scanner/commands/__pycache__ --skip-dirs src/repo_scanner/execution/__pycache__ --skip-dirs src/repo_scanner/image/__pycache__ --skip-dirs src/repo_scanner/scans/__pycache__ --skip-dirs src/repo_scanner/tools/__pycache__ --skip-dirs tests/integration/__pycache__ --skip-dirs tests/scans/__pycache__ --skip-dirs tests/scans/fixtures/__pycache__ --skip-dirs tests/unit/__pycache__ --skip-files uv.lock"
+                }
+              ]
+            }
+          ],
+          "properties": [
+            {
+              "name": "reposcan:workingDirectory",
+              "value": "/resolved-deps/repo-scanner"
+            },
+            {
+              "name": "reposcan:exitCode",
+              "value": "0"
+            },
+            {
+              "name": "reposcan:successful",
+              "value": "true"
+            }
+          ]
+        },
+        {
+          "bom-ref": "reposcan-syft-1",
+          "uid": "syft-1",
+          "name": "syft 1.46.0",
+          "taskTypes": [
+            "scan"
+          ],
+          "steps": [
+            {
+              "name": "syft",
+              "commands": [
+                {
+                  "executed": "/opt/reposcan/bin/syft dir:/resolved-deps/repo-scanner -o cyclonedx-json --override-default-catalogers all --exclude './.pytest_cache/**' --exclude './.ruff_cache/**' --exclude './.tox/**' --exclude './.venv/**' --exclude './src/repo_scanner/__pycache__/**' --exclude './src/repo_scanner/commands/__pycache__/**' --exclude './src/repo_scanner/execution/__pycache__/**' --exclude './src/repo_scanner/image/__pycache__/**' --exclude './src/repo_scanner/scans/__pycache__/**' --exclude './src/repo_scanner/tools/__pycache__/**' --exclude './tests/integration/__pycache__/**' --exclude './tests/scans/__pycache__/**' --exclude './tests/scans/fixtures/__pycache__/**' --exclude './tests/unit/__pycache__/**' --exclude ./uv.lock"
+                }
+              ]
+            }
+          ],
+          "properties": [
+            {
+              "name": "reposcan:workingDirectory",
+              "value": "/resolved-deps/repo-scanner"
+            },
+            {
+              "name": "reposcan:exitCode",
+              "value": "0"
+            },
+            {
+              "name": "reposcan:successful",
+              "value": "true"
+            }
+          ],
+          "inputs": [
+            {
+              "environmentVars": [
+                {
+                  "name": "SYFT_CHECK_FOR_APP_UPDATE",
+                  "value": "false"
+                },
+                {
+                  "name": "SYFT_PYTHON_GUESS_UNPINNED_REQUIREMENTS",
+                  "value": "true"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "bom-ref": "reposcan-cdxgen-2",
+          "uid": "cdxgen-2",
+          "name": "cdxgen 12.7.0",
+          "taskTypes": [
+            "scan"
+          ],
+          "steps": [
+            {
+              "name": "cdxgen",
+              "commands": [
+                {
+                  "executed": "/opt/reposcan/bin/cdxgen --no-install-deps --lifecycle pre-build --no-banner -o /tmp/cdxgen-sbom.json /resolved-deps/repo-scanner --exclude '.pytest_cache/**' --exclude '.ruff_cache/**' --exclude '.tox/**' --exclude '.venv/**' --exclude 'src/repo_scanner/__pycache__/**' --exclude 'src/repo_scanner/commands/__pycache__/**' --exclude 'src/repo_scanner/execution/__pycache__/**' --exclude 'src/repo_scanner/image/__pycache__/**' --exclude 'src/repo_scanner/scans/__pycache__/**' --exclude 'src/repo_scanner/tools/__pycache__/**' --exclude 'tests/integration/__pycache__/**' --exclude 'tests/scans/__pycache__/**' --exclude 'tests/scans/fixtures/__pycache__/**' --exclude 'tests/unit/__pycache__/**' --exclude uv.lock"
+                }
+              ]
+            }
+          ],
+          "properties": [
+            {
+              "name": "reposcan:workingDirectory",
+              "value": "/resolved-deps/repo-scanner"
+            },
+            {
+              "name": "reposcan:exitCode",
+              "value": "0"
+            },
+            {
+              "name": "reposcan:successful",
+              "value": "true"
+            }
+          ],
+          "inputs": [
+            {
+              "environmentVars": [
+                {
+                  "name": "CDXGEN_SECURE_MODE",
+                  "value": "true"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
   ]
 }

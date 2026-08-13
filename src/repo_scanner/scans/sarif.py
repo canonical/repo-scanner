@@ -9,10 +9,11 @@ SarifResult and wraps them in a SarifDocument; `to_dict()` renders the JSON stru
 
 import copy
 import json
+import shlex
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from repo_scanner.scans.model import ArtifactKind, Table
+from repo_scanner.scans.model import ArtifactKind, Table, ToolInvocationRecord
 
 SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 
@@ -249,6 +250,17 @@ class SarifDocument:
                 )
         return Table("findings", columns, findings)
 
+    def record_invocations(self, invocations: list[ToolInvocationRecord]) -> None:
+        """Record each executed tool command under the run's SARIF `invocations`.
+
+        All tools merge into one run, so they share its `invocations` array; each
+        tool is identified by its `executableLocation` and a `tool` property.
+        """
+        runs = self.content.get("runs")
+        if not invocations or not runs:
+            return
+        runs[0]["invocations"] = [_invocation_object(inv) for inv in invocations]
+
 
 # SARIF severity levels from most to least severe; unlisted levels sort last.
 _LEVEL_RANK = {"error": 0, "warning": 1, "note": 2, "none": 3}
@@ -285,6 +297,22 @@ def _standardize_levels(document: dict[str, Any]) -> None:
                 result["level"] = rule_levels.get(
                     str(result.get("ruleId", "")), "warning"
                 )
+
+
+def _invocation_object(inv: ToolInvocationRecord) -> dict[str, Any]:
+    """A SARIF invocation object for one executed tool command."""
+    invocation: dict[str, Any] = {
+        "commandLine": shlex.join(inv.command),
+        "arguments": list(inv.command[1:]),
+        "executableLocation": {"uri": inv.command[0]},
+        "workingDirectory": {"uri": inv.working_directory},
+        "exitCode": inv.exit_code,
+        "executionSuccessful": inv.successful,
+        "properties": {"tool": inv.tool, "version": inv.version},
+    }
+    if inv.environment:
+        invocation["environmentVariables"] = dict(inv.environment)
+    return invocation
 
 
 def _physical(result: dict[str, Any]) -> dict[str, Any]:

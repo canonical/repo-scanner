@@ -8,12 +8,6 @@ lockfile. When the scan has network access, this pre-step runs a package resolve
 generate one. The repo is mounted read-only, so the resolver runs against a writable
 copy of it, which becomes the scan target. It is best-effort: any failure (no
 network, an unsatisfiable resolve, a missing resolver) leaves the target unchanged.
-
-Python is resolved with `uv pip compile`, wheel-only by default so no source is built
-and no untrusted code runs. `--only-binary :all:` is all-or-nothing, though: one
-sdist-only dependency makes the whole resolve fail, so when it fails and
-`allow_code_execution` is set the resolve is retried allowing source builds. See
-docs/sbom-dependency-detection.md.
 """
 
 import logging
@@ -57,6 +51,7 @@ def resolve_dependencies(
     Returns:
         The directory the scan should target.
     """
+    logger.info("Attempting to resolve dependencies and create a lockfile")
     if not _has_file(ctx, f"{target}/pyproject.toml", uid):
         return target  # nothing this batch knows how to resolve
     # Copy under `resolved_parent` keeping the repo's own name, so scan-output
@@ -103,14 +98,14 @@ def _resolve_python(
     # has no Python of its own and would otherwise try to fetch one at scan time.
     env = {"UV_PYTHON_INSTALL_DIR": f"{tool_root}/{UV_PYTHON_SUBDIR}"}
     wheel_only = [*compile_cmd, "--only-binary", ":all:"]
-    logger.info("detected python; running: %s", " ".join(wheel_only))
+    logger.debug("detected python; running: %s", " ".join(wheel_only))
     result = ctx.run(wheel_only, cwd=workdir, env=env, uid=uid)
     if _ok(result):
-        logger.info("resolved python dependencies (wheel-only)")
+        logger.debug("resolved python dependencies (wheel-only)")
         return
     if allow_code_execution:
         # Retry allowing source builds so sdist-only packages resolve (runs code).
-        logger.info(
+        logger.debug(
             "retrying python resolution with source builds: %s", " ".join(compile_cmd)
         )
         result = ctx.run(compile_cmd, cwd=workdir, env=env, uid=uid)

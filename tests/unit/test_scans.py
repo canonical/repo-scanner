@@ -63,6 +63,7 @@ class _FakeScan:
     name: ClassVar[str] = "faux"
     summary: ClassVar[str] = "A fake scan for testing the driver."
     parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
+    resolves_dependencies: ClassVar[bool] = False
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         return [ToolInvocation("trufflehog", ["--version"])]
@@ -76,6 +77,7 @@ class _Scan:
     name: ClassVar[str] = "faux"
     summary: ClassVar[str] = "A configurable fake scan."
     parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
+    resolves_dependencies: ClassVar[bool] = False
 
     def __init__(self, invocations: list[ToolInvocation]) -> None:
         self._invocations = invocations
@@ -128,6 +130,20 @@ def test_run_scan_cwd_uid_and_exclusions_per_invocation() -> None:
     assert ctx.cwds == ["/scan/acme", "/scan/acme", "/module"]
     assert ctx.uids == [None, SCAN_UID, SCAN_UID]  # git as root, tools as the scan uid
     assert ctx.commands[1][3:] == ["--skip-dirs", ".venv", "--skip-files", "secret.env"]
+
+
+def test_run_scan_records_tool_invocations_as_provenance() -> None:
+    # The consolidated report carries each executed command; env is only what the
+    # invocation set (never the inherited process environment).
+    ctx = _FakeContext(ExecResult(0, "", ""))
+    scan = _Scan([ToolInvocation("trufflehog", ["--version"], env={"K": "V"})])
+    artifact = run_scan(scan, ctx, "/scan/acme", "/opt/reposcan")
+    assert not isinstance(artifact, Failure)
+    (invocation,) = artifact.to_dict()["runs"][0]["invocations"]
+    assert invocation["commandLine"] == "/opt/reposcan/bin/trufflehog --version"
+    assert invocation["environmentVariables"] == {"K": "V"}
+    assert invocation["exitCode"] == 0 and invocation["executionSuccessful"] is True
+    assert invocation["properties"]["tool"] == "trufflehog"
 
 
 def test_run_scan_reads_output_file_and_passes_env() -> None:

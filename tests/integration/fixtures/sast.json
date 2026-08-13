@@ -137,6 +137,32 @@
           "ruleId": "python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query",
           "level": "error"
         }
+      ],
+      "invocations": [
+        {
+          "commandLine": "/opt/reposcan/bin/semgrep scan --sarif --metrics=off --disable-version-check --config p/default /scan/repo-scanner",
+          "arguments": [
+            "scan",
+            "--sarif",
+            "--metrics=off",
+            "--disable-version-check",
+            "--config",
+            "p/default",
+            "/scan/repo-scanner"
+          ],
+          "executableLocation": {
+            "uri": "/opt/reposcan/bin/semgrep"
+          },
+          "workingDirectory": {
+            "uri": "/scan/repo-scanner"
+          },
+          "exitCode": 0,
+          "executionSuccessful": true,
+          "properties": {
+            "tool": "semgrep",
+            "version": "1.168.0"
+          }
+        }
       ]
     }
   ]

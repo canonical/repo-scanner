@@ -13,7 +13,7 @@ the scan to consolidate.
 
 import logging
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, ClassVar, NamedTuple, Protocol, runtime_checkable
 
@@ -44,28 +44,6 @@ class Table(NamedTuple):
     rows: list[tuple[str, ...]]
 
 
-class Artifact(Protocol):
-    """A consolidated scan result: a JSON-serialisable document of a known kind."""
-
-    kind: ClassVar[ArtifactKind]
-
-    def to_dict(self) -> dict[str, Any]:
-        """The artifact rendered as a dictionary for JSON serialization."""
-        ...
-
-    def count(self) -> int:
-        """The number of entries the artifact holds (findings, or components)."""
-        ...
-
-    def rows(self) -> tuple[list[str], list[list[str]]]:
-        """A table view of the artifact: column headers and one row per entry."""
-        ...
-
-    def records(self) -> Table:
-        """The artifact's entries as a named database table with parsed columns."""
-        ...
-
-
 @dataclass(frozen=True)
 class ToolInvocation:
     """One tool run a scan needs: the tool, its args, and how to run/judge it.
@@ -88,6 +66,49 @@ class ToolInvocation:
     env: Mapping[str, str] | None = None
     output_file: str | None = None
     optional: bool = False
+
+
+@dataclass(frozen=True)
+class ToolInvocationRecord(ToolInvocation):
+    """Provenance for one executed tool command, recorded in a report's metadata.
+
+    `command` is the full argv as run (executable and every argument). `environment`
+    holds only the variables reposcan set for the run, never the inherited process
+    environment, so no ambient secrets are written into a shareable report.
+    """
+
+    version: str = ""
+    command: tuple[str, ...] = ()
+    working_directory: str = ""
+    environment: Mapping[str, str] = field(default_factory=dict)
+    exit_code: int = -1
+    successful: bool = False
+
+
+class Artifact(Protocol):
+    """A consolidated scan result: a JSON-serialisable document of a known kind."""
+
+    kind: ClassVar[ArtifactKind]
+
+    def to_dict(self) -> dict[str, Any]:
+        """The artifact rendered as a dictionary for JSON serialization."""
+        ...
+
+    def count(self) -> int:
+        """The number of entries the artifact holds (findings, or components)."""
+        ...
+
+    def rows(self) -> tuple[list[str], list[list[str]]]:
+        """A table view of the artifact: column headers and one row per entry."""
+        ...
+
+    def records(self) -> Table:
+        """The artifact's entries as a named database table with parsed columns."""
+        ...
+
+    def record_invocations(self, invocations: list[ToolInvocationRecord]) -> None:
+        """Record the tool commands that produced this artifact, as provenance."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -232,6 +253,7 @@ def run_scan(
         else IgnoredPaths()
     )
     results: list[ToolResult] = []
+    provenance: list[ToolInvocationRecord] = []
     for invocation in invocations:
         tool = TOOLS.get(invocation.tool)
         if tool is None:
@@ -242,7 +264,7 @@ def run_scan(
             *invocation.args,
             *build_exclude_flags(invocation.tool, ignored),
         ]
-        logger.info("Running scan command:\n%s", " ".join(cmd))
+        logger.debug("Running scan command:\n%s", " ".join(cmd))
         result = ctx.run(
             cmd,
             cwd=invocation.cwd or target,
@@ -256,6 +278,17 @@ def run_scan(
                 logger.warning("%s did not run: %s", invocation.tool, result.reason)
                 continue
             return result
+        provenance.append(
+            ToolInvocationRecord(
+                **asdict(invocation),
+                version=tool.version,
+                command=tuple(cmd),
+                working_directory=invocation.cwd or target,
+                environment=dict(invocation.env or {}),
+                exit_code=result.exit_code,
+                successful=result.exit_code in invocation.ok_codes,
+            )
+        )
         if result.exit_code not in invocation.ok_codes:
             reason = result.stderr.strip() or f"exit code {result.exit_code}"
             if invocation.optional:
@@ -272,7 +305,11 @@ def run_scan(
                 return Failure(reason=note)
             result = ExecResult(result.exit_code, content, result.stderr)
         results.append(ToolResult(invocation.tool, result))
-    return scan.consolidate(results)
+    artifact = scan.consolidate(results)
+    if isinstance(artifact, Failure):
+        return artifact
+    artifact.record_invocations(provenance)
+    return artifact
 
 
 def _cat(ctx: ExecutionContext, path: str, cwd: str) -> str | None:

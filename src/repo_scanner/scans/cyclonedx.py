@@ -10,10 +10,11 @@ component with which scanners reported it (via CycloneDX `properties`).
 
 import copy
 import json
+import shlex
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from repo_scanner.scans.model import ArtifactKind, Table
+from repo_scanner.scans.model import ArtifactKind, Table, ToolInvocationRecord
 
 # The property name carrying each contributing scanner on a merged component.
 SCANNER_PROPERTY = "reposcan:scanner"
@@ -58,6 +59,34 @@ def _record_scanner(component: dict[str, Any], scanner: str) -> None:
         ):
             return
     properties.append({"name": SCANNER_PROPERTY, "value": scanner})
+
+
+def _workflow_object(index: int, inv: ToolInvocationRecord) -> dict[str, Any]:
+    """A CycloneDX formulation workflow for one executed tool command."""
+    workflow: dict[str, Any] = {
+        "bom-ref": f"reposcan-{inv.tool}-{index}",
+        "uid": f"{inv.tool}-{index}",
+        "name": f"{inv.tool} {inv.version}",
+        "taskTypes": ["scan"],
+        "steps": [
+            {"name": inv.tool, "commands": [{"executed": shlex.join(inv.command)}]}
+        ],
+        "properties": [
+            {"name": "reposcan:workingDirectory", "value": inv.working_directory},
+            {"name": "reposcan:exitCode", "value": str(inv.exit_code)},
+            {"name": "reposcan:successful", "value": str(inv.successful).lower()},
+        ],
+    }
+    if inv.environment:
+        workflow["inputs"] = [
+            {
+                "environmentVars": [
+                    {"name": key, "value": value}
+                    for key, value in inv.environment.items()
+                ]
+            }
+        ]
+    return workflow
 
 
 def merge(sources: list[tuple[str, "CycloneDxDocument"]]) -> "CycloneDxDocument":
@@ -152,3 +181,18 @@ class CycloneDxDocument:
             for component in self.components()
         ]
         return Table("components", columns, components)
+
+    def record_invocations(self, invocations: list[ToolInvocationRecord]) -> None:
+        """Record each executed tool command in the SBOM's CycloneDX `formulation`.
+
+        Each command is a workflow (a "scan" task) whose step holds the executed
+        command line and whose input holds the environment reposcan set.
+        """
+        if not invocations:
+            return
+        workflows = [
+            _workflow_object(index, inv) for index, inv in enumerate(invocations)
+        ]
+        self.content.setdefault("formulation", []).append(
+            {"bom-ref": "reposcan-scan", "workflows": workflows}
+        )

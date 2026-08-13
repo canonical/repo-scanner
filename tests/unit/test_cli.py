@@ -45,6 +45,7 @@ class _FakeScan:
         Parameter("flavor", "the flavor", choices=("plain", "rich"), default="plain"),
         Parameter("level", "detail level", type=int, requires={"flavor": "rich"}),
     )
+    resolves_dependencies: ClassVar[bool] = False
     flavor: str = "plain"
     level: int | None = None
 
