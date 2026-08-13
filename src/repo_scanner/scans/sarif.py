@@ -12,7 +12,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from repo_scanner.scans.model import ArtifactKind
+from repo_scanner.scans.model import ArtifactKind, Table
 
 SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 
@@ -213,6 +213,42 @@ class SarifDocument:
         findings.sort(key=lambda finding: _level_rank(finding[0]))
         return headers, findings
 
+    def records(self) -> Table:
+        """The findings as a `findings` table for querying and reconstruction.
+
+        Parsed columns (location split into `uri`/`line`, the merge's
+        `properties.scanners`) plus `run` (the result's run index) and `document` (the
+        result's raw JSON, so a single finding reconstructs). In document order.
+        """
+        columns = (
+            "rule",
+            "level",
+            "uri",
+            "line",
+            "message",
+            "scanners",
+            "run",
+            "document",
+        )
+        findings = []
+        for index, run in enumerate(self.content.get("runs", [])):
+            for result in run.get("results", []):
+                physical = _physical(result)
+                line = physical.get("region", {}).get("startLine")
+                findings.append(
+                    (
+                        str(result.get("ruleId", "")),
+                        str(result.get("level") or "warning"),
+                        str(physical.get("artifactLocation", {}).get("uri", "")),
+                        str(line) if line else "",
+                        str(result.get("message", {}).get("text", "")),
+                        ",".join(result.get("properties", {}).get("scanners", [])),
+                        str(index),
+                        json.dumps(result),
+                    )
+                )
+        return Table("findings", columns, findings)
+
 
 # SARIF severity levels from most to least severe; unlisted levels sort last.
 _LEVEL_RANK = {"error": 0, "warning": 1, "note": 2, "none": 3}
@@ -251,12 +287,15 @@ def _standardize_levels(document: dict[str, Any]) -> None:
                 )
 
 
+def _physical(result: dict[str, Any]) -> dict[str, Any]:
+    """A result's primary physicalLocation object, or an empty dict if it has none."""
+    locations = result.get("locations") or []
+    return locations[0].get("physicalLocation", {}) if locations else {}
+
+
 def _location(result: dict[str, Any]) -> str:
     """The 'uri:line' of a result's primary location, or '' if it has none."""
-    locations = result.get("locations") or []
-    if not locations:
-        return ""
-    physical = locations[0].get("physicalLocation", {})
+    physical = _physical(result)
     uri = str(physical.get("artifactLocation", {}).get("uri", ""))
     line = physical.get("region", {}).get("startLine")
     return f"{uri}:{line}" if line else uri

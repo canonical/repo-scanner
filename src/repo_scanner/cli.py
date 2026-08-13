@@ -15,6 +15,7 @@ from repo_scanner.commands import (
     exec_cmd,
     image_cmd,
     invoke_cmd,
+    render_cmd,
     scan_cmd,
     tools_cmd,
 )
@@ -49,6 +50,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=SCAN_UID,
         metavar="UID",
         help="UID for all in-backend processes. Ignored by the local backend.",
+    )
+    parser.add_argument(
+        "--allow-code-execution",
+        action="store_true",
+        help="Let SBOM/SCA dependency resolution build source packages when needed "
+        "(e.g. sdist-only Python packages), which runs untrusted repository code. Off "
+        "by default: resolution stays wheel-only and no code is executed.",
     )
 
     # SUBCOMMANDS
@@ -165,6 +173,42 @@ def build_parser() -> argparse.ArgumentParser:
     )
     config_options.add_argument("key")
 
+    # SUBCOMMAND: RENDER
+    render_parser = subcommands.add_parser(
+        "render",
+        help="Render a saved report (JSON or sqlite) as a table, JSON, or sqlite.",
+    )
+    render_parser.add_argument(
+        "path",
+        help="Path to a saved report: SARIF/CycloneDX JSON or a sqlite database.",
+    )
+    render_parser.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        metavar="FILE",
+        help="Write to FILE instead of stdout (required for --format sqlite).",
+    )
+    formats = [fmt.value for fmt in output.Format]
+    render_parser.add_argument(
+        "--format",
+        choices=formats,
+        default=None,
+        help=f"Output format: {formats}.",
+    )
+    render_parser.add_argument(
+        "--limit",
+        type=int,
+        default=output.DEFAULT_ROW_LIMIT,
+        metavar="N",
+        help=f"Maximum rows shown in the table (default: {output.DEFAULT_ROW_LIMIT}).",
+    )
+    render_parser.add_argument(
+        "--wrap",
+        action="store_true",
+        help="Wrap long table cells across multiple lines instead of truncating.",
+    )
+
     # SUBCOMMAND: SCAN -- one subcommand per registered scan, built from its
     # declared summary and parameters (see scans/registry.py and scans/model.py).
     scan_parser = subcommands.add_parser("scan", help="Scan a repository.")
@@ -196,11 +240,12 @@ def _add_scan(
         metavar="FILE",
         help="Write the report to FILE instead of stdout.",
     )
+    formats = [fmt.value for fmt in output.Format]
     parser.add_argument(
         "--format",
-        choices=[fmt.value for fmt in output.Format],
+        choices=formats,
         default=None,
-        help="Output format: 'table' or 'json'.",
+        help=f"Output format: {formats}",
     )
     parser.add_argument(
         "--limit",
@@ -319,6 +364,17 @@ def _run_image_cache(args: argparse.Namespace) -> int:
     return image_cmd.run_cache_clear()  # clear
 
 
+def _run_render(args: argparse.Namespace) -> int:
+    """Render a saved report between formats; no backend needed."""
+    return render_cmd.run_render(
+        args.path,
+        fmt=args.format,
+        output_path=args.output,
+        limit=args.limit,
+        wrap=args.wrap,
+    )
+
+
 def _run_scan(args: argparse.Namespace) -> int:
     """Scan a repository: mount it into the tool image and run the scan's tools."""
     path = os.path.abspath(args.path)
@@ -346,6 +402,7 @@ def _run_scan(args: argparse.Namespace) -> int:
             limit=args.limit,
             wrap=args.wrap,
             uid=args.uid,
+            allow_code_execution=args.allow_code_execution,
         )
 
 
@@ -369,6 +426,8 @@ def main(argv: list[str] | None = None) -> int:
             return _run_bootstrap(args)
         case "image":
             return _run_image(args)
+        case "render":
+            return _run_render(args)
         case "scan":
             return _run_scan(args)
         case _:  # unreachable: the parser rejects any other command

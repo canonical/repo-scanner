@@ -15,7 +15,7 @@ import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, ClassVar, Protocol, runtime_checkable
+from typing import Any, ClassVar, NamedTuple, Protocol, runtime_checkable
 
 from repo_scanner.execution.context import SCAN_UID, ExecutionContext
 from repo_scanner.execution.process import ExecResult, Failure
@@ -36,6 +36,14 @@ class ArtifactKind(str, Enum):
     CYCLONEDX = "cyclonedx"
 
 
+class Table(NamedTuple):
+    """A named database table for an artifact: its name, columns, and string rows."""
+
+    name: str
+    columns: tuple[str, ...]
+    rows: list[tuple[str, ...]]
+
+
 class Artifact(Protocol):
     """A consolidated scan result: a JSON-serialisable document of a known kind."""
 
@@ -51,6 +59,10 @@ class Artifact(Protocol):
 
     def rows(self) -> tuple[list[str], list[list[str]]]:
         """A table view of the artifact: column headers and one row per entry."""
+        ...
+
+    def records(self) -> Table:
+        """The artifact's entries as a named database table with parsed columns."""
         ...
 
 
@@ -224,12 +236,14 @@ def run_scan(
         if tool is None:
             return Failure(reason=f"unknown tool: {invocation.tool}")
         executable = tool.installed_path(tool_root)
+        cmd = [
+            executable,
+            *invocation.args,
+            *build_exclude_flags(invocation.tool, ignored),
+        ]
+        logger.info("Running scan command:\n%s", " ".join(cmd))
         result = ctx.run(
-            [
-                executable,
-                *invocation.args,
-                *build_exclude_flags(invocation.tool, ignored),
-            ],
+            cmd,
             cwd=invocation.cwd or target,
             env=invocation.env,
             uid=uid,

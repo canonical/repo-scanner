@@ -7,6 +7,7 @@ import io
 import json
 import os
 import shutil
+import sqlite3
 import tempfile
 from contextlib import redirect_stdout
 
@@ -90,3 +91,15 @@ def test_emit_refuses_to_overwrite_an_existing_file() -> None:
         assert isinstance(result, Failure) and "already exists" in result.reason
         with open(path) as handle:
             assert handle.read() == "existing"  # left untouched
+
+
+def test_sqlite_format_writes_a_database_and_requires_a_file() -> None:
+    doc = _sarif("error")
+    with tempfile.TemporaryDirectory() as directory:
+        path = os.path.join(directory, "r.db")
+        assert emit(doc, output=path, fmt=Format.SQLITE) is None
+        count = (
+            sqlite3.connect(path).execute("SELECT count(*) FROM findings").fetchone()
+        )
+    assert count == (1,)  # a real sqlite db with the parsed findings table
+    assert isinstance(emit(doc, fmt=Format.SQLITE), Failure)  # no file -> Failure

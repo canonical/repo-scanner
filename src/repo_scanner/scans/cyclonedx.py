@@ -13,7 +13,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from repo_scanner.scans.model import ArtifactKind
+from repo_scanner.scans.model import ArtifactKind, Table
 
 # The property name carrying each contributing scanner on a merged component.
 SCANNER_PROPERTY = "reposcan:scanner"
@@ -127,3 +127,28 @@ class CycloneDxDocument:
             for component in self.components()
         ]
         return headers, rows
+
+    def records(self) -> Table:
+        """The components as a `components` table for querying and reconstruction.
+
+        Parsed columns (package URL, the merge's contributing scanners from the
+        `reposcan:scanner` properties) plus `document` (the component's raw JSON, so a
+        single component reconstructs). In document order.
+        """
+        columns = ("name", "version", "type", "purl", "scanners", "document")
+        components = [
+            (
+                str(component.get("name", "")),
+                str(component.get("version", "")),
+                str(component.get("type", "")),
+                str(component.get("purl", "")),
+                ",".join(
+                    str(prop.get("value", ""))
+                    for prop in component.get("properties", [])
+                    if prop.get("name") == SCANNER_PROPERTY
+                ),
+                json.dumps(component),
+            )
+            for component in self.components()
+        ]
+        return Table("components", columns, components)

@@ -17,6 +17,7 @@ import textwrap
 from enum import Enum
 
 from repo_scanner.execution.process import Failure
+from repo_scanner.scans import sqlitedb
 from repo_scanner.scans.model import Artifact
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ class Format(str, Enum):
 
     TABLE = "table"
     JSON = "json"
+    SQLITE = "sqlite"  # a binary database; must go to a file, not stdout
 
 
 def emit(
@@ -61,9 +63,12 @@ def emit(
 
     Returns:
         None on success, or a Failure if the output file already exists (it is not
-        overwritten) or could not be written.
+        overwritten), could not be written, or the sqlite format was requested without
+        an output file.
     """
     chosen = fmt or (Format.JSON if output is not None else Format.TABLE)
+    if chosen is Format.SQLITE:
+        return _emit_sqlite(artifact, output)
     if chosen is Format.JSON:
         text = json.dumps(artifact.to_dict(), indent=2) + "\n"
     else:
@@ -82,6 +87,25 @@ def emit(
         )
     except OSError as exc:
         return Failure(reason=f"could not write {output}: {exc}")
+    return None
+
+
+def _emit_sqlite(artifact: Artifact, output: str | None) -> Failure | None:
+    """Write `artifact` to a sqlite database at `output` (a binary file, not stdout)."""
+    if output is None:
+        return Failure(reason="sqlite output must be written to a file (use -o FILE)")
+    try:
+        # Reserve the path atomically (exclusive create) so an existing file is not
+        # overwritten; sqlite then initializes the empty file into a database.
+        with open(output, "x"):
+            pass
+    except FileExistsError:
+        return Failure(
+            reason=f"output file already exists, refusing to overwrite: {output}"
+        )
+    except OSError as exc:
+        return Failure(reason=f"could not write {output}: {exc}")
+    sqlitedb.write(artifact, output)
     return None
 
 
