@@ -19,7 +19,7 @@ import json
 import logging
 from typing import Any
 
-from repo_scanner.execution.process import ExecResult, run_process
+from repo_scanner.execution.process import run_process, succeeded
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +67,10 @@ def firewall_warning(bridge: str) -> str | None:
     filter FORWARD chain.
     """
     nft = run_process(["nft", "-j", "list", "table", "ip", "filter"])
-    if isinstance(nft, ExecResult) and nft.exit_code == 0:
+    if succeeded(nft):
         return _analyze_nft(nft.stdout, bridge)
     legacy = run_process(["iptables", "-S"])
-    if isinstance(legacy, ExecResult) and legacy.exit_code == 0:
+    if succeeded(legacy):
         return _analyze_iptables(legacy.stdout, bridge)
     return None
 

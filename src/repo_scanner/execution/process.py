@@ -18,7 +18,7 @@ import sys
 import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import IO, TextIO
+from typing import IO, TextIO, TypeGuard
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,15 @@ class Failure:
 
     reason: str
     timed_out: bool = False
+
+
+def succeeded(result: ExecResult | Failure) -> TypeGuard[ExecResult]:
+    """Whether an operation ran to completion and exited zero.
+
+    Typed as a `TypeGuard` so a true result also narrows `result` to `ExecResult`,
+    letting a caller read its output in the same branch without a second check.
+    """
+    return isinstance(result, ExecResult) and result.ok
 
 
 class _Tee:

@@ -10,7 +10,7 @@ tagged by the spec digest. See image/builder.py for the shared ensure step.
 import tempfile
 from pathlib import Path
 
-from repo_scanner.execution.process import ExecResult, Failure, run_process
+from repo_scanner.execution.process import Failure, run_process, succeeded
 from repo_scanner.image.build_spec import NAME, BuildSpec
 
 
@@ -26,7 +26,7 @@ class DockerImageBuilder:
         # The image ID (a sha256) is Docker's content hash of the image.
         argv = ["docker", "image", "inspect", "--format", "{{.Id}}", reference]
         result = run_process(argv, timeout=30)
-        if isinstance(result, ExecResult) and result.exit_code == 0:
+        if succeeded(result):
             return result.stdout.strip() or None
         return None
 

@@ -17,7 +17,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, ClassVar, NamedTuple, Protocol, runtime_checkable
 
-from repo_scanner.execution.context import SCAN_UID, ExecutionContext
+from repo_scanner.execution.context import SCAN_UID, ExecutionContext, read_file
 from repo_scanner.execution.process import ExecResult, Failure
 from repo_scanner.scans.exclude import (
     EXCLUDABLE_TOOLS,
@@ -296,7 +296,9 @@ def run_scan(
                 continue
             return Failure(reason=f"{invocation.tool} failed: {reason}")
         if invocation.output_file is not None:
-            content = _cat(ctx, invocation.output_file, invocation.cwd or target)
+            content = read_file(
+                ctx, invocation.output_file, cwd=invocation.cwd or target
+            )
             if content is None:
                 note = f"{invocation.tool} wrote no output to {invocation.output_file}"
                 if invocation.optional:
@@ -310,11 +312,3 @@ def run_scan(
         return artifact
     artifact.record_invocations(provenance)
     return artifact
-
-
-def _cat(ctx: ExecutionContext, path: str, cwd: str) -> str | None:
-    """The text content of `path` inside `ctx`, or None if it could not be read."""
-    result = ctx.run(["cat", path], cwd=cwd)
-    if isinstance(result, ExecResult) and result.exit_code == 0:
-        return result.stdout
-    return None

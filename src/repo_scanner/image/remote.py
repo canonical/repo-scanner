@@ -6,7 +6,7 @@
 import logging
 from typing import Protocol
 
-from repo_scanner.execution.process import ExecResult, Failure, run_process
+from repo_scanner.execution.process import Failure, run_process, succeeded
 from repo_scanner.image import cache
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class DockerRemote:
     def identity(self, ref: str) -> str | None:
         argv = ["docker", "image", "inspect", "--format", "{{.Id}}", ref]
         result = run_process(argv, timeout=30)
-        if isinstance(result, ExecResult) and result.exit_code == 0:
+        if succeeded(result):
             return result.stdout.strip() or None
         return None
 

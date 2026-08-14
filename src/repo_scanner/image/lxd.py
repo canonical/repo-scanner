@@ -15,7 +15,7 @@ import tempfile
 
 from repo_scanner.execution.firewall import lxd_bridge_hint
 from repo_scanner.execution.lxd import LXC, ensure_project
-from repo_scanner.execution.process import ExecResult, Failure, run_process
+from repo_scanner.execution.process import ExecResult, Failure, run_process, succeeded
 from repo_scanner.image.build_spec import NAME, BuildSpec
 
 logger = logging.getLogger(__name__)
@@ -125,7 +125,7 @@ def _offline_reason(handle: str) -> Failure | None:
             "exec 3<>/dev/tcp/github.com/443",
         ]
     )
-    if isinstance(probe, ExecResult) and probe.ok:
+    if succeeded(probe):
         return None
     # Confirmed offline: surface the likely firewall cause and its fix as a warning
     # (this is the diagnostic that would otherwise never appear), then abort.

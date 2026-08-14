@@ -18,7 +18,7 @@ import os
 from collections.abc import Mapping, Sequence
 from typing import Protocol
 
-from repo_scanner.execution.process import ExecResult, Failure
+from repo_scanner.execution.process import ExecResult, Failure, succeeded
 
 # Parent directory a scanned source is bind-mounted under inside a container. A fixed
 # parent (rather than the filesystem root) avoids colliding with system directories.
@@ -111,3 +111,15 @@ class ExecutionContext(Protocol):
         ...
 
     def stop(self) -> None: ...
+
+
+def read_file(
+    ctx: ExecutionContext,
+    path: str,
+    *,
+    cwd: str | None = None,
+    uid: int | None = None,
+) -> str | None:
+    """The text content of `path` read through `ctx` (via `cat`), or None on failure."""
+    result = ctx.run(["cat", path], cwd=cwd, uid=uid)
+    return result.stdout if succeeded(result) else None

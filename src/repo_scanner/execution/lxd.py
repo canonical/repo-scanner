@@ -11,7 +11,7 @@ from collections.abc import Mapping, Sequence
 
 from repo_scanner.execution.context import as_user, home_for, mounted_target
 from repo_scanner.execution.firewall import warn_if_lxd_bridge_blocked
-from repo_scanner.execution.process import ExecResult, Failure, run_process
+from repo_scanner.execution.process import ExecResult, Failure, run_process, succeeded
 
 # The dedicated LXD project reposcan works in. Every instance- or image-acting lxc
 # command is pinned to it (the LXC prefix) so reposcan's ephemeral containers and its
@@ -32,7 +32,7 @@ def ensure_project() -> Failure | None:
         it failed.
     """
     presence_check = run_process(["lxc", "project", "show", PROJECT])
-    if isinstance(presence_check, ExecResult) and presence_check.ok:
+    if succeeded(presence_check):
         return None
     created = run_process(
         [
