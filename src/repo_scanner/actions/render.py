@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan render` command: convert a saved report between formats.
+"""The `reposcan render` action: convert a saved report between formats.
 
 Reads a report -- SARIF/CycloneDX JSON, or a reposcan sqlite database -- and renders
 it as a table, as JSON, or as a sqlite database.
@@ -16,7 +16,7 @@ from repo_scanner.scans.model import Artifact
 logger = logging.getLogger(__name__)
 
 
-def run_render(
+def render(
     input_path: str,
     *,
     fmt: str | None = None,

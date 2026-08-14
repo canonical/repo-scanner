@@ -3,9 +3,15 @@
 
 """The `reposcan config` subcommand: get or set persistent configuration."""
 
+from repo_scanner.actions.config import (
+    get_value,
+    list_keys,
+    list_options,
+    set_value,
+    unset_value,
+)
 from repo_scanner.cli.nodes import Command, CommandGroup
 from repo_scanner.cli.options import Option, Values
-from repo_scanner.commands import config_cmd
 
 
 class ConfigSetCommand(Command):
@@ -17,7 +23,7 @@ class ConfigSetCommand(Command):
     )
 
     def run(self, values: Values) -> int:
-        return config_cmd.set_value(values["key"], values["value"])
+        return set_value(values["key"], values["value"])
 
 
 class ConfigGetCommand(Command):
@@ -26,7 +32,7 @@ class ConfigGetCommand(Command):
     options = (Option(("key",), "key", positional=True, nargs="?", default=None),)
 
     def run(self, values: Values) -> int:
-        return config_cmd.get_value(values["key"])
+        return get_value(values["key"])
 
 
 class ConfigUnsetCommand(Command):
@@ -35,7 +41,7 @@ class ConfigUnsetCommand(Command):
     options = (Option(("key",), "key", positional=True),)
 
     def run(self, values: Values) -> int:
-        return config_cmd.unset_value(values["key"])
+        return unset_value(values["key"])
 
 
 class ConfigKeysCommand(Command):
@@ -44,7 +50,7 @@ class ConfigKeysCommand(Command):
     options = ()
 
     def run(self, values: Values) -> int:
-        return config_cmd.list_keys()
+        return list_keys()
 
 
 class ConfigOptionsCommand(Command):
@@ -53,7 +59,7 @@ class ConfigOptionsCommand(Command):
     options = (Option(("key",), "key", positional=True),)
 
     def run(self, values: Values) -> int:
-        return config_cmd.list_options(values["key"])
+        return list_options(values["key"])
 
 
 class ConfigGroup(CommandGroup):

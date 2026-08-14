@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""`reposcan exec` command: run a command in the selected execution context."""
+"""`reposcan exec` action: run a command in the selected execution context."""
 
 import logging
 import sys
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 TIMEOUT_EXIT_CODE = 124
 
 
-def run_exec(
+def execute(
     context: ExecutionContext, command: list[str], *, timeout: float | None
 ) -> int:
     """Run `command` in the already-started `context` and return an exit code.

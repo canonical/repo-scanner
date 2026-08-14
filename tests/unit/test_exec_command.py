@@ -1,20 +1,20 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the `reposcan exec` command (repo_scanner.commands.exec_cmd)."""
+"""Tests for the `reposcan exec` command (repo_scanner.actions.exec)."""
 
 import io
 import sys
 from contextlib import redirect_stdout
 
-from repo_scanner.commands.exec_cmd import TIMEOUT_EXIT_CODE, run_exec
+from repo_scanner.actions.exec import TIMEOUT_EXIT_CODE, execute
 from repo_scanner.execution.local import LocalContext
 
 
 def test_forwards_output_and_the_commands_own_exit_code() -> None:
     out = io.StringIO()
     with redirect_stdout(out):
-        code = run_exec(
+        code = execute(
             LocalContext(),
             [sys.executable, "-c", "print('X'); raise SystemExit(7)"],
             timeout=None,
@@ -25,7 +25,7 @@ def test_forwards_output_and_the_commands_own_exit_code() -> None:
 
 def test_maps_the_failure_modes_to_exit_codes() -> None:
     local = LocalContext()
-    assert run_exec(local, [], timeout=None) == 2  # no command given
-    assert run_exec(local, ["reposcan-no-such-binary-xyz"], timeout=None) == 1  # start
+    assert execute(local, [], timeout=None) == 2  # no command given
+    assert execute(local, ["reposcan-no-such-binary-xyz"], timeout=None) == 1  # start
     slept = [sys.executable, "-c", "import time; time.sleep(5)"]
-    assert run_exec(local, slept, timeout=0.5) == TIMEOUT_EXIT_CODE  # timed out
+    assert execute(local, slept, timeout=0.5) == TIMEOUT_EXIT_CODE  # timed out

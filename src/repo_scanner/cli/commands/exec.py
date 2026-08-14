@@ -3,11 +3,11 @@
 
 """The `reposcan exec` subcommand: run a command in the selected context."""
 
+from repo_scanner.actions.exec import execute
 from repo_scanner.backends import start_session
 from repo_scanner.cli.nodes import Command
 from repo_scanner.cli.options import Option, Values
 from repo_scanner.cli.parsing import command_argv
-from repo_scanner.commands import exec_cmd
 
 
 class ExecCommand(Command):
@@ -37,7 +37,7 @@ class ExecCommand(Command):
         with start_session(values["backend"], tool_image=True) as session:
             if not session.ok:
                 return session.exit_code
-            return exec_cmd.run_exec(
+            return execute(
                 session.context,
                 command_argv(values["argv"]),
                 timeout=values["timeout"],

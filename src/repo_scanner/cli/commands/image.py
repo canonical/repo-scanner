@@ -5,10 +5,15 @@
 
 import logging
 
+from repo_scanner.actions.image import (
+    build_image,
+    clear_cache,
+    list_cache,
+    remove_cache_entry,
+)
 from repo_scanner.backends import select_backend
 from repo_scanner.cli.nodes import Command, CommandGroup
 from repo_scanner.cli.options import Option, Values
-from repo_scanner.commands import image_cmd
 from repo_scanner.execution.process import Failure
 
 logger = logging.getLogger(__name__)
@@ -39,7 +44,7 @@ class ImageBuildCommand(Command):
         if builder is None:
             logger.error("the %s backend cannot build images", backend.name)
             return 2
-        return image_cmd.run_image_build(builder, force=values["force"])
+        return build_image(builder, force=values["force"])
 
 
 class CacheListCommand(Command):
@@ -48,7 +53,7 @@ class CacheListCommand(Command):
     options = ()
 
     def run(self, values: Values) -> int:
-        return image_cmd.run_cache_list()
+        return list_cache()
 
 
 class CacheRemoveCommand(Command):
@@ -57,7 +62,7 @@ class CacheRemoveCommand(Command):
     options = (Option(("reference",), "reference", positional=True),)
 
     def run(self, values: Values) -> int:
-        return image_cmd.run_cache_remove(values["reference"])
+        return remove_cache_entry(values["reference"])
 
 
 class CacheClearCommand(Command):
@@ -66,7 +71,7 @@ class CacheClearCommand(Command):
     options = ()
 
     def run(self, values: Values) -> int:
-        return image_cmd.run_cache_clear()
+        return clear_cache()
 
 
 class CacheGroup(CommandGroup):

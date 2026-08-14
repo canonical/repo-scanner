@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan tools` command."""
+"""The `reposcan tools` action."""
 
 import logging
 import os
@@ -12,7 +12,7 @@ from repo_scanner.tools.registry import TOOLS
 logger = logging.getLogger(__name__)
 
 
-def run_tools(install_root: str) -> int:
+def list_tools(install_root: str) -> int:
     """List every scanning tool with its version, kind, and install status.
 
     Shows whether each tool is installed under `install_root`. Always returns 0.

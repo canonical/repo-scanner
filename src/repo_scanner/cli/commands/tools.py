@@ -3,9 +3,9 @@
 
 """The `reposcan tools` subcommand: list tools and their install status."""
 
+from repo_scanner.actions.tools import list_tools
 from repo_scanner.cli.nodes import Command
 from repo_scanner.cli.options import Values
-from repo_scanner.commands import tools_cmd
 from repo_scanner.paths import tools_root
 
 
@@ -16,4 +16,4 @@ class ToolsCommand(Command):
 
     def run(self, values: Values) -> int:
         """List the scanning tools and their install status on the host."""
-        return tools_cmd.run_tools(str(tools_root()))
+        return list_tools(str(tools_root()))

@@ -18,6 +18,7 @@ import logging
 import os
 from typing import Any
 
+from repo_scanner.actions.scan import scan as run_scan
 from repo_scanner.backends import start_session
 from repo_scanner.cli.nodes import CommandGroup, Context
 from repo_scanner.cli.options import REPORT_FORMAT_OPTIONS, Option
@@ -26,7 +27,6 @@ from repo_scanner.cli.parsing import (
     print_help,
     unknown_command,
 )
-from repo_scanner.commands import scan_cmd
 from repo_scanner.scans import output
 from repo_scanner.scans.model import Scan, check_parameters
 from repo_scanner.scans.registry import SCANS
@@ -132,7 +132,7 @@ def _run_scan(scan_cls: type[Scan], argv: list[str], ctx: Context) -> int:
             return session.exit_code
         assert session.target is not None  # a source was given, so target is set
         fmt = output.Format(values["format"]) if values["format"] else None
-        return scan_cmd.run_scan_command(
+        return run_scan(
             scan_cls(**scan_kwargs),
             session.context,
             session.target,

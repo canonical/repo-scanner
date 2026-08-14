@@ -16,7 +16,7 @@ import os
 import tempfile
 from contextlib import redirect_stdout
 
-from repo_scanner.commands.render_cmd import run_render
+from repo_scanner.actions.render import render
 
 _FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -25,7 +25,7 @@ def _render(input_path: str, **kwargs) -> str:
     """Run `render` on `input_path`, returning what it wrote to stdout."""
     out = io.StringIO()
     with redirect_stdout(out):
-        assert run_render(input_path, **kwargs) == 0
+        assert render(input_path, **kwargs) == 0
     return out.getvalue()
 
 
@@ -37,7 +37,7 @@ def _round_trips(fixture: str) -> None:
 
     with tempfile.TemporaryDirectory() as directory:
         database = os.path.join(directory, "report.db")
-        assert run_render(source, fmt="sqlite", output_path=database) == 0
+        assert render(source, fmt="sqlite", output_path=database) == 0
 
         # sqlite input rendered back to JSON reconstructs the original document.
         rendered = _render(database, fmt="json")

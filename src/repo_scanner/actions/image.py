@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan image` commands: build the tool image and manage the image cache."""
+"""The `reposcan image` actions: build the tool image and manage the image cache."""
 
 import logging
 import sys
@@ -15,7 +15,7 @@ from repo_scanner.tools.install import current_platform
 logger = logging.getLogger(__name__)
 
 
-def run_image_build(builder: ImageBuilder, *, force: bool) -> int:
+def build_image(builder: ImageBuilder, *, force: bool) -> int:
     """Build (or reuse) the tool image with `builder`.
 
     Args:
@@ -34,7 +34,7 @@ def run_image_build(builder: ImageBuilder, *, force: bool) -> int:
     return 0
 
 
-def run_cache_list() -> int:
+def list_cache() -> int:
     """Print each recorded image cache entry as `reference  identity` to stdout."""
     entries = cache.entries()
     if not entries:
@@ -46,7 +46,7 @@ def run_cache_list() -> int:
     return 0
 
 
-def run_cache_remove(reference: str) -> int:
+def remove_cache_entry(reference: str) -> int:
     """Remove `reference` from the image cache.
 
     Returns:
@@ -64,7 +64,7 @@ def run_cache_remove(reference: str) -> int:
     return 0
 
 
-def run_cache_clear() -> int:
+def clear_cache() -> int:
     """Remove every image cache entry.
 
     Returns:

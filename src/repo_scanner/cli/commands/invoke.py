@@ -3,11 +3,11 @@
 
 """The `reposcan invoke` subcommand: run an installed tool, passing args through."""
 
+from repo_scanner.actions.invoke import invoke
 from repo_scanner.backends import start_session
 from repo_scanner.cli.nodes import Command
 from repo_scanner.cli.options import Option, Values
 from repo_scanner.cli.parsing import command_argv
-from repo_scanner.commands import invoke_cmd
 
 
 class InvokeCommand(Command):
@@ -38,7 +38,7 @@ class InvokeCommand(Command):
         with start_session(values["backend"], tool_image=True) as session:
             if not session.ok:
                 return session.exit_code
-            return invoke_cmd.run_invoke(
+            return invoke(
                 session.context,
                 values["tool"],
                 command_argv(values["argv"]),

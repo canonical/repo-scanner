@@ -3,9 +3,9 @@
 
 """The `reposcan render` subcommand: convert a saved report between formats."""
 
+from repo_scanner.actions.render import render
 from repo_scanner.cli.nodes import Command
 from repo_scanner.cli.options import REPORT_FORMAT_OPTIONS, Option, Values
-from repo_scanner.commands import render_cmd
 
 
 class RenderCommand(Command):
@@ -30,7 +30,7 @@ class RenderCommand(Command):
 
     def run(self, values: Values) -> int:
         """Render a saved report between formats; no backend needed."""
-        return render_cmd.run_render(
+        return render(
             values["path"],
             fmt=values["format"],
             output_path=values["output"],

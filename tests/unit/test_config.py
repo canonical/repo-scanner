@@ -14,8 +14,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager, redirect_stdout
 
 from repo_scanner import config
+from repo_scanner.actions.config import get_value, set_value, unset_value
 from repo_scanner.cli import main
-from repo_scanner.commands.config_cmd import get_value, set_value, unset_value
 
 
 @contextmanager

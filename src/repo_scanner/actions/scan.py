@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan scan` command: run a scan and emit its artifact.
+"""The `reposcan scan` action: run a scan and emit its artifact.
 
 Runs the scan in the started context, emits the result through the output module,
 and maps the outcome to an exit code: 0 when the scan ran and found nothing,
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 FINDINGS_EXIT_CODE = 3
 
 
-def run_scan_command(
+def scan(
     scan: Scan,
     ctx: ExecutionContext,
     target: str,

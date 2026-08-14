@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the `reposcan scan` command (repo_scanner.commands.scan_cmd).
+"""Tests for the `reposcan scan` command (repo_scanner.actions.scan).
 
 run_scan is patched to a scripted artifact/Failure, so this covers the command's
 own job: writing the report and choosing the exit code (0 clean / 3 findings / 1
@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager, redirect_stdout
 from typing import cast
 
-import repo_scanner.commands.scan_cmd as scan_cmd
+import repo_scanner.actions.scan as scan_cmd
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import cyclonedx, sarif
@@ -55,7 +55,7 @@ def _run(
     # run_scan is patched, so the context is never touched; cast a placeholder.
     ctx = cast(ExecutionContext, None)
     with _patched_run_scan(outcome), redirect_stdout(out):
-        code = scan_cmd.run_scan_command(
+        code = scan_cmd.scan(
             SecretsScan(), ctx, "/scan/x", "/opt/reposcan", output_file=output, fmt=fmt
         )
     return code, out.getvalue()

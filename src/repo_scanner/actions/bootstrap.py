@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan bootstrap` command: install tools onto the host or a container.
+"""The `reposcan bootstrap` action: install tools onto the host or a container.
 
 With an explicit --backend, install into a container. All scanning tools by
 default, or a named subset; either way each tool's prerequisites (uv, the Go SDK)
@@ -19,7 +19,7 @@ from repo_scanner.tools.registry import TOOLS
 logger = logging.getLogger(__name__)
 
 
-def run_bootstrap(
+def bootstrap(
     ctx: ExecutionContext,
     names: list[str],
     platform: Platform,

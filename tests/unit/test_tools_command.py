@@ -1,14 +1,14 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the `reposcan tools` command (repo_scanner.commands.tools_cmd)."""
+"""Tests for the `reposcan tools` command (repo_scanner.actions.tools)."""
 
 import io
 import os
 import tempfile
 from contextlib import redirect_stdout
 
-from repo_scanner.commands.tools_cmd import run_tools
+from repo_scanner.actions.tools import list_tools
 from repo_scanner.tools.registry import TOOLS, TRUFFLEHOG
 
 
@@ -21,7 +21,7 @@ def test_lists_every_scanning_tool_with_its_install_status() -> None:
 
         out = io.StringIO()
         with redirect_stdout(out):
-            code = run_tools(root)
+            code = list_tools(root)
 
     assert code == 0
     listing = out.getvalue()

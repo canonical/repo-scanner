@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the `reposcan bootstrap` command (repo_scanner.commands.bootstrap_cmd).
+"""Tests for the `reposcan bootstrap` command (repo_scanner.actions.bootstrap).
 
 A fake execution context records the shell commands it is handed and can be told to
 fail those matching a substring, so the command's resolution, ordering, and
@@ -11,7 +11,7 @@ failure-domain behavior can be checked without installing anything.
 import logging
 from collections.abc import Mapping, Sequence
 
-from repo_scanner.commands.bootstrap_cmd import run_bootstrap
+from repo_scanner.actions.bootstrap import bootstrap
 from repo_scanner.execution.process import ExecResult, Failure
 from repo_scanner.tools.model import Platform
 
@@ -83,7 +83,7 @@ def test_unknown_tool_is_rejected() -> None:
     context = _FakeContext()
     handler, remove = _capture_logs()
     try:
-        code = run_bootstrap(context, ["not-a-tool"], _LINUX, _ROOT)
+        code = bootstrap(context, ["not-a-tool"], _LINUX, _ROOT)
     finally:
         remove()
     assert code == 2
@@ -95,7 +95,7 @@ def test_installs_a_named_tool_and_pulls_in_its_prerequisite() -> None:
     context = _FakeContext()
     handler, remove = _capture_logs()
     try:
-        code = run_bootstrap(context, ["semgrep"], _LINUX, _ROOT)
+        code = bootstrap(context, ["semgrep"], _LINUX, _ROOT)
     finally:
         remove()
     assert code == 0
@@ -113,7 +113,7 @@ def test_a_failing_tool_is_isolated_and_the_rest_proceed() -> None:
     context = _FakeContext(fail_on="trufflehog")
     handler, remove = _capture_logs()
     try:
-        code = run_bootstrap(context, ["trufflehog", "semgrep"], _LINUX, _ROOT)
+        code = bootstrap(context, ["trufflehog", "semgrep"], _LINUX, _ROOT)
     finally:
         remove()
     assert code == 1
@@ -125,7 +125,7 @@ def test_no_names_installs_every_tool() -> None:
     context = _FakeContext()
     handler, remove = _capture_logs()
     try:
-        code = run_bootstrap(context, [], _LINUX, _ROOT)
+        code = bootstrap(context, [], _LINUX, _ROOT)
     finally:
         remove()
     assert code == 0

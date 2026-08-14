@@ -6,10 +6,10 @@
 import logging
 import sys
 
+from repo_scanner.actions.bootstrap import bootstrap
 from repo_scanner.backends import start_session
 from repo_scanner.cli.nodes import Command
 from repo_scanner.cli.options import Option, Values
-from repo_scanner.commands import bootstrap_cmd
 from repo_scanner.tools.install import current_platform
 from repo_scanner.tools.registry import TOOLS
 
@@ -54,7 +54,7 @@ class BootstrapCommand(Command):
                 and not confirm_host_install()
             ):
                 return 1
-            return bootstrap_cmd.run_bootstrap(
+            return bootstrap(
                 session.context,
                 values["tools"],
                 current_platform(),

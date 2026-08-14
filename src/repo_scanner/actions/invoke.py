@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan invoke` command: run an installed tool, passing arguments through."""
+"""The `reposcan invoke` action: run an installed tool, passing arguments through."""
 
 import logging
 import sys
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 TIMEOUT_EXIT_CODE = 124
 
 
-def run_invoke(
+def invoke(
     ctx: ExecutionContext,
     name: str,
     args: list[str],

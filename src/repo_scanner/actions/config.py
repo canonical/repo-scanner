@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan config` command: read and write persistent configuration."""
+"""The `reposcan config` action: read and write persistent configuration."""
 
 import logging
 import sys
