@@ -1,10 +1,9 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The Python dependency resolver: `uv pip compile` over uv-resolvable manifests."""
+"""The uv package manager: `uv pip compile` over uv-resolvable manifests."""
 
 import logging
-from collections.abc import Mapping
 
 from repo_scanner.execution.context import ExecutionContext, read_file
 from repo_scanner.execution.process import ExecResult, succeeded
@@ -19,38 +18,30 @@ _NATIVE_LOCKS = frozenset(
 )
 
 
-class PythonResolver:
+class Uv:
     """Resolves Python dependencies with `uv pip compile`.
 
     Handles the inputs uv resolves without a project-specific tool: PEP 621
     `[project]` metadata in `pyproject.toml`, `requirements*.txt`/`.in` files, and a
-    static `setup.cfg`. Legacy Poetry/PDM/Pipenv manifests are left for their own
-    resolvers; a directory that already ships a native lockfile is skipped.
+    static `setup.cfg`. Legacy Poetry/PDM/Pipenv manifests are left to their own
+    package managers; a directory that already ships a native lockfile is skipped.
     """
 
-    name = "python"
-
-    def find_roots(self, tracked: Mapping[str, set[str]]) -> list[str]:
-        """The directories with a uv-resolvable Python manifest and no native lock."""
-        return sorted(
-            directory
-            for directory, names in tracked.items()
-            if not (names & _NATIVE_LOCKS) and _has_manifest(names)
-        )
+    def can_resolve(self, names: set[str]) -> bool:
+        """Whether `names` holds a uv-resolvable manifest and no native lock."""
+        return not (names & _NATIVE_LOCKS) and _has_manifest(names)
 
     def resolve(
         self,
         ctx: ExecutionContext,
-        repo_dir: str,
-        directory: str,
+        workdir: str,
         names: set[str],
         tool_root: str,
         uid: int,
         *,
         allow_code_execution: bool,
     ) -> None:
-        """Compile each uv-resolvable input in `directory` into a pinned lockfile."""
-        workdir = repo_dir if not directory else f"{repo_dir}/{directory}"
+        """Compile each uv-resolvable input in `workdir` into a pinned lockfile."""
         for input_name in self._inputs(ctx, workdir, names, uid):
             self._compile(
                 ctx, workdir, input_name, tool_root, uid, allow_code_execution
@@ -125,7 +116,7 @@ class PythonResolver:
 
 
 def _has_manifest(names: set[str]) -> bool:
-    """Whether `names` holds any file the Python resolver can resolve from."""
+    """Whether `names` holds any file uv can resolve from."""
     return (
         "pyproject.toml" in names
         or "setup.cfg" in names

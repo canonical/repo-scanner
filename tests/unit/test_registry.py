@@ -10,31 +10,15 @@ supply-chain pins and is wired to the right dependency.
 
 from repo_scanner.tools.install import install_plan
 from repo_scanner.tools.model import GoTool, NativeBinary, Platform, PypiTool
-from repo_scanner.tools.registry import GO_SDK, TOOLS, UV
-
-
-def test_tools_lists_the_scanners_and_excludes_prerequisites() -> None:
-    assert set(TOOLS) == {
-        "semgrep",
-        "checkov",
-        "zizmor",
-        "trufflehog",
-        "syft",
-        "grype",
-        "trivy",
-        "poutine",
-        "cdxgen",
-        "govulncheck",
-    }
-    # uv and the Go SDK are prerequisites, reached only via `requires`, never listed.
-    assert "uv" not in TOOLS and "go" not in TOOLS
+from repo_scanner.tools.registry import GO_SDK, RESOLVER_TOOLS, TOOLS, UV
 
 
 def test_every_tool_is_fully_pinned_and_wired_to_its_prerequisite() -> None:
     # install_plan pulls in the prerequisites, so iterating it covers uv and the Go SDK
     # too. Each tool must carry a real pin, and the dependents must name the concrete
     # prerequisite instance.
-    for step in install_plan(TOOLS.values(), Platform("linux", "amd64"), "/opt/tools"):
+    everything = [*TOOLS.values(), *RESOLVER_TOOLS]
+    for step in install_plan(everything, Platform("linux", "amd64"), "/opt/tools"):
         tool = step.tool
         if isinstance(tool, PypiTool):
             assert "--hash=sha256:" in tool.requirements

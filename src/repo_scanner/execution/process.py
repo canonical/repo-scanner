@@ -106,6 +106,7 @@ def run_process(
     check: bool = False,
     stream_stdout: bool = False,
     stream_stderr: bool = False,
+    stdin: str | None = None,
 ) -> ExecResult | Failure:
     """Run `command` and return its outcome as an ExecResult or Failure.
 
@@ -125,6 +126,8 @@ def run_process(
         check: When True, treat a nonzero exit as a Failure rather than an ExecResult.
         stream_stdout: When True, echo the command's stdout live as it runs.
         stream_stderr: When True, echo the command's stderr live as it runs.
+        stdin: Text to feed the command on standard input, or None to inherit this
+            process's stdin. The stream is closed after the text is written.
 
     Returns:
         An ExecResult with the exit code and captured output when the process ran to
@@ -138,6 +141,7 @@ def run_process(
             argv,
             cwd=cwd,
             env=dict(env) if env is not None else None,
+            stdin=subprocess.PIPE if stdin is not None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -155,6 +159,14 @@ def run_process(
     readers = [threading.Thread(target=out.drain), threading.Thread(target=err.drain)]
     for reader in readers:
         reader.start()
+    # Feed stdin after the readers are draining, so a command that writes before it
+    # finishes reading cannot deadlock on a full stdout/stderr pipe.
+    if stdin is not None and process.stdin is not None:
+        try:
+            process.stdin.write(stdin)
+            process.stdin.close()
+        except OSError:
+            pass  # the process exited before reading stdin; its exit code reports it
     try:
         process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:

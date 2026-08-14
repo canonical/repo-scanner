@@ -3,8 +3,11 @@
 
 """Tests for the local execution context (repo_scanner.execution.local)."""
 
+import os
 import sys
+import tempfile
 
+from repo_scanner.execution.context import read_file, write_file
 from repo_scanner.execution.local import LocalContext
 from repo_scanner.execution.process import ExecResult
 
@@ -16,3 +19,11 @@ def test_run_executes_on_the_host_with_env_overlaid() -> None:
     )
     assert isinstance(result, ExecResult)
     assert result.stdout.strip() == "overlaid"
+
+
+def test_write_file_feeds_content_over_stdin_and_read_file_reads_it_back() -> None:
+    ctx = LocalContext()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "lock.txt")
+        assert write_file(ctx, path, "flask==3.0.0\nrequests==2.31.0\n") is True
+        assert read_file(ctx, path) == "flask==3.0.0\nrequests==2.31.0\n"

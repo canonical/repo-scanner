@@ -42,6 +42,7 @@ class _FakeContext:
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
+        stdin: str | None = None,
     ) -> ExecResult | Failure:
         script = command[-1]  # sh -euc <script>
         self.scripts.append(script)

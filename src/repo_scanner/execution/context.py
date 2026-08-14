@@ -101,12 +101,14 @@ class ExecutionContext(Protocol):
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
+        stdin: str | None = None,
     ) -> ExecResult | Failure:
         """Run `command`, returning its result or a Failure.
 
         `uid`, when set, runs the command as that user id (container backends only;
         the local context ignores it and runs as the invoking user). None runs as the
-        context's default (root in a container).
+        context's default (root in a container). `stdin`, when set, is fed to the
+        command on standard input.
         """
         ...
 
@@ -123,3 +125,16 @@ def read_file(
     """The text content of `path` read through `ctx` (via `cat`), or None on failure."""
     result = ctx.run(["cat", path], cwd=cwd, uid=uid)
     return result.stdout if succeeded(result) else None
+
+
+def write_file(
+    ctx: ExecutionContext,
+    path: str,
+    content: str,
+    *,
+    cwd: str | None = None,
+    uid: int | None = None,
+) -> bool:
+    """Write `content` to `path` through `ctx`, returning whether it succeeded."""
+    result = ctx.run(["cp", "/dev/stdin", path], cwd=cwd, uid=uid, stdin=content)
+    return succeeded(result)

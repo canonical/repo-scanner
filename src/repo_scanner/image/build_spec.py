@@ -22,7 +22,7 @@ from repo_scanner.execution.context import (
 )
 from repo_scanner.tools.install import install_plan
 from repo_scanner.tools.model import Platform
-from repo_scanner.tools.registry import TOOLS, UV_PYTHON_SUBDIR
+from repo_scanner.tools.registry import RESOLVER_TOOLS, TOOLS, UV_PYTHON_SUBDIR
 
 # The image name that built images are tagged/aliased under (with the spec digest).
 NAME = "reposcan"
@@ -79,7 +79,9 @@ def build_script(platform: Platform, install_root: str = INSTALL_ROOT) -> str:
         f"mkdir -p {RESOLVED_PARENT}",
         f"chown {SCAN_UID}:{SCAN_GID} {RESOLVED_PARENT}",
     ]
-    for step in install_plan(TOOLS.values(), platform, install_root):
+    for step in install_plan(
+        [*TOOLS.values(), *RESOLVER_TOOLS], platform, install_root
+    ):
         lines.append(f"# {step.tool.name} {step.tool.version}")
         lines.extend(step.commands)
     # tools are installed as root; make them readable and executable by the scan user.

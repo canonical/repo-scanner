@@ -23,6 +23,15 @@ def test_captures_output_exit_code_and_check() -> None:
     assert isinstance(bad, Failure)
 
 
+def test_stdin_is_fed_to_the_command() -> None:
+    result = run_process(
+        [sys.executable, "-c", "import sys; print(sys.stdin.read())"],
+        stdin="piped-input",
+    )
+    assert isinstance(result, ExecResult)
+    assert result.stdout.strip() == "piped-input"
+
+
 def test_the_ways_a_run_can_fail_become_failures() -> None:
     assert isinstance(run_process([]), Failure)  # no command
     missing = run_process(["reposcan-no-such-binary-xyz"])

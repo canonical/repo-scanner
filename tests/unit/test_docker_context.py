@@ -26,6 +26,7 @@ def _patched_run(result: ExecResult | Failure):
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
+        stdin: str | None = None,
     ) -> ExecResult | Failure:
         calls.append(list(command))
         return result
@@ -47,6 +48,15 @@ def test_starts_the_given_image_and_execs_commands_in_it() -> None:
         ctx.run(["ls", "-a"], cwd="/src", env={"K": "V"})
     expected = ["docker", "exec", "-w", "/src", "-e", "K=V", "abc123", "ls", "-a"]
     assert calls[-1] == expected
+
+
+def test_stdin_keeps_the_exec_interactive() -> None:
+    # docker exec discards stdin unless -i is passed; the context adds it only then.
+    with _patched_run(ExecResult(0, "", "")) as calls:
+        ctx = DockerContext("reposcan:tools")
+        assert ctx.start() is None
+        ctx.run(["cp", "/dev/stdin", "out.txt"], cwd="/scan", stdin="data")
+    assert calls[-1][:3] == ["docker", "exec", "-i"]
 
 
 def test_a_uid_drops_privileges_via_setpriv() -> None:

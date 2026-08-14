@@ -24,7 +24,7 @@ from repo_scanner.scans.resolve.resolver import Resolver
 
 logger = logging.getLogger(__name__)
 
-# Every ecosystem resolver; JS/TS and Go resolvers join this in later batches.
+# One Resolver per ecosystem; each coordinates the ecosystem's package managers.
 _RESOLVERS: tuple[Resolver, ...] = (PythonResolver(),)
 
 

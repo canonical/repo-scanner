@@ -45,6 +45,7 @@ class _FakeContext:
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
+        stdin: str | None = None,
     ) -> ExecResult | Failure:
         self.commands.append(list(command))
         self.streamed.append((stream_stdout, stream_stderr))

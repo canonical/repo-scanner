@@ -272,7 +272,6 @@ ZIZMOR = PypiTool(
     requires=(UV,),
 )
 
-
 # all scanning tools keyed by name; this is the user-facing set that `tools` lists
 # and `bootstrap`/`invoke` operate on.
 TOOLS: dict[str, Tool] = {
@@ -290,3 +289,28 @@ TOOLS: dict[str, Tool] = {
         GOVULNCHECK,
     )
 }
+
+# --- Resolvers
+# used to generate lockfiles. Not surfaced in user-facing tool lists.
+
+# verify: https://pypi.org/project/poetry/2.4.1/#files  (per-file SHA256)
+# poetry-plugin-export (bundled in the lock) restores `poetry export`, which poetry
+# dropped from its core in 2.0.
+POETRY = PypiTool(
+    name="poetry",
+    version="2.4.1",
+    requirements=_lock("poetry"),
+    entrypoints=("poetry",),
+    requires=(UV,),
+)
+
+# verify: https://pypi.org/project/pipenv/2026.7.1/#files  (per-file SHA256)
+PIPENV = PypiTool(
+    name="pipenv",
+    version="2026.7.1",
+    requirements=_lock("pipenv"),
+    entrypoints=("pipenv",),
+    requires=(UV,),
+)
+
+RESOLVER_TOOLS: tuple[Tool, ...] = (POETRY, PIPENV)

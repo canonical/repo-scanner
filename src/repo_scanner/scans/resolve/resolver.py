@@ -1,7 +1,13 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The Resolver interface."""
+"""`Resolver` and `PackageManager` interfaces.
+
+A `Resolver` coordinates one ecosystem (Python, JS, Go): it discovers the directories
+the ecosystem can resolve and drives resolution in each by composing
+`PackageManager`s -- specific tools within the ecosystem (uv, poetry, pipenv;
+later npm, pnpm).
+"""
 
 from collections.abc import Mapping
 from typing import Protocol
@@ -10,12 +16,10 @@ from repo_scanner.execution.context import ExecutionContext
 
 
 class Resolver(Protocol):
-    """Resolves one ecosystem's dependencies into a writable copy of the repo.
+    """Coordinates dependency resolution for an ecosystem.
 
-    A resolver claims the directories it can resolve from the repo's tracked-file
-    listing (`find_roots`), then generates a lockfile in each (`resolve`). New
-    ecosystems plug in by implementing this and joining the `_RESOLVERS` registry in
-    `core`.
+    Discovers directories it can resolve from the repo's tracked-file listing
+    (`find_roots`) and resolves each (`resolve`) by dispatching to `PackageManager`s.
     """
 
     name: str
@@ -27,7 +31,7 @@ class Resolver(Protocol):
             tracked: Each tracked directory mapped to the set of file basenames in it.
 
         Returns:
-            The directories holding a manifest this resolver handles.
+            The directories this ecosystem can resolve something in.
         """
         ...
 
@@ -52,5 +56,44 @@ class Resolver(Protocol):
             tool_root: Where the tools are installed in the context.
             uid: The user id the resolver runs as.
             allow_code_execution: Permit building source packages (runs untrusted code).
+        """
+        ...
+
+
+class PackageManager(Protocol):
+    """A package manager within an ecosystem (uv, poetry, pipenv, npm, ...)."""
+
+    def can_resolve(self, names: set[str]) -> bool:
+        """Whether this package manager can resolve deps in a directory with `names`.
+
+        Args:
+            names: The file basenames in the directory.
+
+        Returns:
+            True if the directory holds a manifest this manager owns and no lock it
+            would only reproduce.
+        """
+        ...
+
+    def resolve(
+        self,
+        ctx: ExecutionContext,
+        workdir: str,
+        names: set[str],
+        tool_root: str,
+        uid: int,
+        *,
+        allow_code_execution: bool,
+    ) -> None:
+        """Generate a lockfile in `workdir`.
+
+        Args:
+            ctx: The started context to run the package manager in.
+            workdir: The directory's absolute path in the writable repo copy.
+            names: The file basenames in `workdir`.
+            tool_root: Where the tools are installed in the context.
+            uid: The user id the package manager runs as.
+            allow_code_execution: Permit building source packages
+                (may run untrusted code).
         """
         ...

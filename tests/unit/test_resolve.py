@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the dependency-resolution pre-step (repo_scanner.scans.resolve)."""
+"""Test the dependency-resolution pre-step (repo_scanner.scans.resolve)."""
 
 from collections.abc import Mapping, Sequence
 
@@ -130,3 +130,58 @@ def test_leaves_target_unchanged_without_resolvable_python() -> None:
     for ctx in (_FakeContext(_z("README.md", "src/app.go")), _NoGit(_z())):
         assert resolve_dependencies(ctx, TARGET, TOOL_ROOT, RESOLVED_PARENT) == TARGET
         assert not ctx.copied()
+
+
+def test_resolves_a_legacy_poetry_project() -> None:
+    # [tool.poetry] with no [project] (and no poetry.lock): uv skips it; poetry locks
+    # and exports a pinned requirements file the catalogers read.
+    ctx = _FakeContext(
+        _z("pyproject.toml"),
+        files={f"{DEST}/pyproject.toml": "[tool.poetry]\nname = 'acme'\n"},
+    )
+
+    assert resolve_dependencies(ctx, TARGET, TOOL_ROOT, RESOLVED_PARENT) == DEST
+    ran = [cmd for cmd, _ in ctx.runs]
+    poetry = f"{TOOL_ROOT}/bin/poetry"
+    assert [poetry, "lock"] in ran and any(cmd[:2] == [poetry, "export"] for cmd in ran)
+    assert ctx.compiled() == []  # uv did not resolve a legacy-Poetry pyproject
+
+
+def test_poetry_defers_to_uv_when_pep621_metadata_is_present() -> None:
+    # A Poetry >=2.0 pyproject that also declares [project] is uv's job; poetry stays
+    # out.
+    ctx = _FakeContext(
+        _z("pyproject.toml"),
+        files={f"{DEST}/pyproject.toml": "[project]\nname = 'acme'\n[tool.poetry]\n"},
+    )
+
+    resolve_dependencies(ctx, TARGET, TOOL_ROOT, RESOLVED_PARENT)
+    assert ctx.compiled() == [("pyproject.toml", DEST)]
+    assert not any("poetry" in cmd[0] for cmd, _ in ctx.runs)
+
+
+def test_resolves_a_pipenv_project_writing_the_captured_requirements() -> None:
+    # Pipfile with no Pipfile.lock: pipenv locks, then its stdout `requirements` are
+    # written to a *requirements*.txt (pipenv has no output flag).
+    ctx = _FakeContext(_z("Pipfile"), files={f"{DEST}/Pipfile": "[packages]\n"})
+
+    assert resolve_dependencies(ctx, TARGET, TOOL_ROOT, RESOLVED_PARENT) == DEST
+    ran = [cmd for cmd, _ in ctx.runs]
+    pipenv = f"{TOOL_ROOT}/bin/pipenv"
+    assert [pipenv, "lock"] in ran and [pipenv, "requirements"] in ran
+    # the captured stdout is written to a *requirements*.txt via `cp /dev/stdin`.
+    assert any(
+        cmd[:2] == ["cp", "/dev/stdin"] and cmd[-1].endswith("requirements.txt")
+        for cmd in ran
+    )
+
+
+def test_skips_poetry_and_pipenv_directories_that_are_already_locked() -> None:
+    # poetry.lock / Pipfile.lock mean the deps are pinned and the SBOM tools read them.
+    ctx = _FakeContext(
+        _z("pyproject.toml", "poetry.lock", "svc/Pipfile", "svc/Pipfile.lock"),
+        files={f"{DEST}/pyproject.toml": "[tool.poetry]\n"},
+    )
+
+    assert resolve_dependencies(ctx, TARGET, TOOL_ROOT, RESOLVED_PARENT) == TARGET
+    assert not ctx.copied()

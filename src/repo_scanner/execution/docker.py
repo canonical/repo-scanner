@@ -50,10 +50,13 @@ class DockerContext:
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
+        stdin: str | None = None,
     ) -> ExecResult | Failure:
         if self._instance_name is None:
             return Failure(reason="container is not started")
         argv = ["docker", "exec"]
+        if stdin is not None:
+            argv.append("-i")  # keep stdin open so the command can read it
         if cwd is not None:
             argv += ["-w", cwd]
         run_env = dict(env or {})
@@ -69,6 +72,7 @@ class DockerContext:
             timeout=timeout,
             stream_stdout=stream_stdout,
             stream_stderr=stream_stderr,
+            stdin=stdin,
         )
 
     def stop(self) -> None:

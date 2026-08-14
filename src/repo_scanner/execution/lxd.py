@@ -116,6 +116,7 @@ class LxdContext:
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
+        stdin: str | None = None,
     ) -> ExecResult | Failure:
         if self._instance_name is None:
             return Failure(reason="container is not started")
@@ -135,6 +136,7 @@ class LxdContext:
             timeout=timeout,
             stream_stdout=stream_stdout,
             stream_stderr=stream_stderr,
+            stdin=stdin,
         )
 
     def stop(self) -> None:

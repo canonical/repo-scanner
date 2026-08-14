@@ -31,6 +31,7 @@ class LocalContext:
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
+        stdin: str | None = None,
     ) -> ExecResult | Failure:
         run_env = None if env is None else {**os.environ, **env}
         return run_process(
@@ -40,6 +41,7 @@ class LocalContext:
             timeout=timeout,
             stream_stdout=stream_stdout,
             stream_stderr=stream_stderr,
+            stdin=stdin,
         )
 
     def stop(self) -> None:
