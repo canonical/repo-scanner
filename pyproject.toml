@@ -144,4 +144,5 @@ typeCheckingMode = "standard"
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit"]
-addopts = "-v"
+# importlib mode allows test files to share the same basename
+addopts = "-v --import-mode=importlib"
