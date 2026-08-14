@@ -8,6 +8,6 @@ module (see `core` for the registry).
 """
 
 from repo_scanner.scans.resolve.core import resolve_dependencies
-from repo_scanner.scans.resolve.resolver import Resolver
+from repo_scanner.scans.resolve.interfaces import Resolver
 
 __all__ = ["Resolver", "resolve_dependencies"]

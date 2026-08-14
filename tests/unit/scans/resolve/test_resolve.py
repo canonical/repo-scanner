@@ -185,3 +185,32 @@ def test_skips_poetry_and_pipenv_directories_that_are_already_locked() -> None:
 
     assert resolve_dependencies(ctx, TARGET, TOOL_ROOT, RESOLVED_PARENT) == TARGET
     assert not ctx.copied()
+
+
+def test_resolves_js_projects_dispatching_npm_and_pnpm() -> None:
+    # Root package.json -> npm; a pnpm workspace -> pnpm
+    ctx = _FakeContext(
+        _z("package.json", "svc/package.json", "svc/pnpm-workspace.yaml")
+    )
+
+    assert resolve_dependencies(ctx, TARGET, TOOL_ROOT, RESOLVED_PARENT) == DEST
+    npm = [f"{TOOL_ROOT}/bin/npm", "install", "--package-lock-only", "--ignore-scripts"]
+    pnpm = [f"{TOOL_ROOT}/bin/pnpm", "install", "--lockfile-only", "--ignore-scripts"]
+    assert (npm, DEST) in ctx.runs
+    assert (pnpm, f"{DEST}/svc") in ctx.runs
+    assert (npm, f"{DEST}/svc") not in ctx.runs  # npm defers in the pnpm workspace
+
+
+def test_skips_js_directories_that_are_already_locked() -> None:
+    # A committed package-lock.json / pnpm-lock.yaml is read by the SBOM tools directly.
+    ctx = _FakeContext(
+        _z(
+            "package.json",
+            "package-lock.json",
+            "ws/pnpm-workspace.yaml",
+            "ws/pnpm-lock.yaml",
+        )
+    )
+
+    assert resolve_dependencies(ctx, TARGET, TOOL_ROOT, RESOLVED_PARENT) == TARGET
+    assert not ctx.copied()

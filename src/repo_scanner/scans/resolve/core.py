@@ -19,13 +19,14 @@ import os
 
 from repo_scanner.execution.context import SCAN_UID, ExecutionContext
 from repo_scanner.execution.process import ExecResult, succeeded
+from repo_scanner.scans.resolve.interfaces import Resolver
+from repo_scanner.scans.resolve.js import JsResolver
 from repo_scanner.scans.resolve.python import PythonResolver
-from repo_scanner.scans.resolve.resolver import Resolver
 
 logger = logging.getLogger(__name__)
 
 # One Resolver per ecosystem; each coordinates the ecosystem's package managers.
-_RESOLVERS: tuple[Resolver, ...] = (PythonResolver(),)
+_RESOLVERS: tuple[Resolver, ...] = (PythonResolver(), JsResolver())
 
 
 def resolve_dependencies(

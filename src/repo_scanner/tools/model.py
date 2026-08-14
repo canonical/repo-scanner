@@ -107,11 +107,15 @@ class NativeBinary:
       downloads like the Go toolchain resolve their siblings (its `go` binary finds
       GOROOT through the symlink); single-file archives just symlink one binary.
     - a bare (unarchived) binary is installed straight to `bin/<name>`.
+
+    `also_link` names extra sibling executables in the tree's `bin/` to expose at
+    `bin/<name>` too (e.g. Node's bundled `npm` alongside `node`).
     """
 
     name: str
     version: str
     executable: str = ""
+    also_link: tuple[str, ...] = ()
     requires: tuple[Tool, ...] = ()
     downloads: tuple[Download, ...] = ()
     kind: ClassVar[ToolKind] = ToolKind.NATIVE_BINARY
@@ -160,6 +164,12 @@ class NativeBinary:
                 f'tar -xf "{archive}" -C "{tree}"',
                 f'ln -sf "$(find "{tree}" -type f -name "{executable}" | head -1)" '
                 f'"{dest}"',
+            ]
+            # Expose extra sibling executables (e.g. Node's `npm`) from the tree's bin/.
+            commands += [
+                f'ln -sf "$(find "{tree}" -path "*/bin/{extra}" | head -1)" '
+                f'"{install_root}/bin/{extra}"'
+                for extra in self.also_link
             ]
         else:
             # A bare binary download: install it directly.

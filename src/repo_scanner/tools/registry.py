@@ -313,4 +313,49 @@ PIPENV = PypiTool(
     requires=(UV,),
 )
 
-RESOLVER_TOOLS: tuple[Tool, ...] = (POETRY, PIPENV)
+# Node LTS ("Krypton"). Its bundled npm resolves package.json repos (npm/yarn/bun all
+# keep their deps there); `also_link` exposes that npm at bin/npm beside bin/node.
+# verify: https://nodejs.org/dist/v24.19.0/SHASUMS256.txt  (per-file SHA256)
+NODE = NativeBinary(
+    name="node",
+    version="24.19.0",
+    executable="node",
+    also_link=("npm",),
+    downloads=(
+        Download(
+            os="linux",
+            arch="amd64",
+            url="https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-x64.tar.gz",
+            sha256="f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4",
+        ),
+        Download(
+            os="linux",
+            arch="arm64",
+            url="https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-arm64.tar.gz",
+            sha256="d28c8a5bf0a808f0ed434a1dce8c54ae98f0371c0bd86ac58abc613f73e6643f",
+        ),
+    ),
+)
+
+# pnpm ships self-contained (a bundled Node), so it needs no Node install of its own.
+# verify: https://github.com/pnpm/pnpm/releases/tag/v11.21.0
+PNPM = NativeBinary(
+    name="pnpm",
+    version="11.21.0",
+    downloads=(
+        Download(
+            os="linux",
+            arch="amd64",
+            url=_gh("pnpm/pnpm", "v11.21.0", "pnpm-linux-x64.tar.gz"),
+            sha256="aadc489ce4473c2af0fec06a5c19e113b5793d404eac49853c8153bf4b0d8263",
+        ),
+        Download(
+            os="linux",
+            arch="arm64",
+            url=_gh("pnpm/pnpm", "v11.21.0", "pnpm-linux-arm64.tar.gz"),
+            sha256="64eb219b008f7a4c176d81fbce919c20b0b7e093e815cbb669d46e681451f43b",
+        ),
+    ),
+)
+
+RESOLVER_TOOLS: tuple[Tool, ...] = (POETRY, PIPENV, NODE, PNPM)
