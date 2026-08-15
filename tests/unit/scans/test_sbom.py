@@ -1,0 +1,82 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""Tests for the SBOM scan (repo_scanner.scans.sbom) and CycloneDX merge."""
+
+import json
+
+from repo_scanner.execution.process import ExecResult, Failure
+from repo_scanner.scans.cyclonedx import CycloneDxDocument
+from repo_scanner.scans.model import ToolInvocationRecord, ToolResult
+from repo_scanner.scans.sbom import SbomScan
+
+
+def _cyclonedx(components: list[dict]) -> str:
+    return json.dumps(
+        {"bomFormat": "CycloneDX", "specVersion": "1.5", "components": components}
+    )
+
+
+def test_consolidate_merges_dedups_by_purl_and_annotates_scanners() -> None:
+    shared = {"type": "library", "name": "left-pad", "purl": "pkg:npm/left-pad@1.0.0"}
+    trivy = _cyclonedx([shared, {"name": "a", "purl": "pkg:npm/a@1"}])
+    syft = _cyclonedx([shared, {"name": "b", "purl": "pkg:npm/b@1"}])
+
+    result = SbomScan().consolidate(
+        [
+            ToolResult("trivy", ExecResult(0, trivy, "")),
+            ToolResult("syft", ExecResult(0, syft, "")),
+        ]
+    )
+    assert not isinstance(result, Failure)
+    by_purl = {c["purl"]: c for c in result.components()}
+    assert len(by_purl) == 3  # the shared component is deduped by purl
+    scanners = [
+        p["value"]
+        for p in by_purl["pkg:npm/left-pad@1.0.0"]["properties"]
+        if p["name"] == "reposcan:scanner"
+    ]
+    assert scanners == ["trivy", "syft"]
+
+
+def test_consolidate_fails_on_non_cyclonedx_output() -> None:
+    result = SbomScan().consolidate(
+        [ToolResult("syft", ExecResult(0, "not cyclonedx", ""))]
+    )
+    assert isinstance(result, Failure)
+
+
+def test_record_invocations_adds_a_formulation_workflow_with_command_and_env() -> None:
+    doc = CycloneDxDocument(
+        {"bomFormat": "CycloneDX", "specVersion": "1.5", "components": []}
+    )
+    doc.record_invocations(
+        [
+            ToolInvocationRecord(
+                tool="syft",
+                args=[
+                    "dir:/scan/acme",
+                    "-o",
+                    "cyclonedx-json",
+                ],
+                version="1.46.0",
+                command=(
+                    "/opt/reposcan/bin/syft",
+                    "dir:/scan/acme",
+                    "-o",
+                    "cyclonedx-json",
+                ),
+                working_directory="/scan/acme",
+                environment={"SYFT_CHECK_FOR_APP_UPDATE": "false"},
+                exit_code=0,
+                successful=True,
+            )
+        ]
+    )
+    (formula,) = doc.to_dict()["formulation"]
+    (workflow,) = formula["workflows"]
+    assert workflow["taskTypes"] == ["scan"]  # a valid CycloneDX task type
+    executed = workflow["steps"][0]["commands"][0]["executed"]
+    assert executed == "/opt/reposcan/bin/syft dir:/scan/acme -o cyclonedx-json"
+    env_vars = workflow["inputs"][0]["environmentVars"]
+    assert {"name": "SYFT_CHECK_FOR_APP_UPDATE", "value": "false"} in env_vars

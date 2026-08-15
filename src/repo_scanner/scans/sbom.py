@@ -62,7 +62,8 @@ class SbomScan:
                     # Broaden beyond syft's default directory catalogers: costs some
                     # performance but can catch extra packages (e.g. a bare
                     # package.json, via an installed-only cataloger that is off on a
-                    # directory scan by default). See docs/sbom-dependency-detection.md.
+                    # directory scan by default). See
+                    # docs/explanation/sbom-generation.md.
                     "--override-default-catalogers",
                     "all",
                 ],
@@ -71,7 +72,7 @@ class SbomScan:
                     # Capture requirements.txt entries that carry a version constraint
                     # but no exact pin (e.g. "flask>=2.0"); syft drops them otherwise.
                     # Note: no SBOM tool reads pyproject.toml deps in our no-install
-                    # mode -- see docs/sbom-dependency-detection.md.
+                    # mode -- see docs/explanation/sbom-generation.md.
                     "SYFT_PYTHON_GUESS_UNPINNED_REQUIREMENTS": "true",
                 },
             ),

@@ -51,7 +51,11 @@ class ScaScan:
             ToolInvocation(
                 "trivy", ["fs", "--format", "sarif", "--scanners", "vuln", target]
             ),
-            ToolInvocation("grype", [f"dir:{target}", "-o", "sarif"]),
+            ToolInvocation(
+                "grype",
+                [f"dir:{target}", "-o", "sarif"],
+                env={"GRYPE_CHECK_FOR_APP_UPDATE": "false"},
+            ),
             ToolInvocation(
                 "govulncheck",
                 ["-json", "./..."],
