@@ -63,7 +63,7 @@ behavior of pip. We did it for maven, but it was really challenging."
 
 reposcan runs all three tools with the target repository as the working
 directory, as an unprivileged user, and with git-ignored directories excluded
-(see `docs/path-exclusion.md`).
+(see `path-exclusion.md`).
 
 - syft: `syft dir:<target> -o cyclonedx-json`, with env
   `SYFT_CHECK_FOR_APP_UPDATE=false`,

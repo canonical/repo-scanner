@@ -7,6 +7,27 @@ By default, it executes all scans in ephemeral containers. It defaults to LXD
 and falls back to Docker based on availability. It supports running scans
 directly on the local host, though this is discouraged.
 
+## Scans
+
+`reposcan scan <type>` runs one of six scan types against a repository:
+
+- `secrets`: leaked credentials in the git history or working tree.
+- `sast`: static analysis of source code for security bugs.
+- `iac`: misconfigurations in infrastructure-as-code.
+- `workflow`: risks in CI/CD workflow definitions.
+- `sca`: known vulnerabilities in dependencies.
+- `sbom`: a CycloneDX software bill of materials.
+
+See the [scans reference](docs/reference/scans.md) for each scan's options and
+output.
+
+## Documentation
+
+Full documentation lives in [`docs/`](docs/index.md): tutorials, how-to guides,
+a command and configuration reference, and design explanation. Start with
+[your first scan](docs/tutorials/first-scan.md) or the
+[architecture](docs/explanation/architecture.md).
+
 ## Bundled tools and their licenses
 
 `reposcan` drives a fixed set of third-party tools, each pinned by hash in
@@ -30,30 +51,9 @@ license, linked below:
 
 ### License compliance
 
-`reposcan` does not modify, fork, or link any of these tools into its own code.
-Each is installed from its official upstream release, pinned by hash, and
-invoked as a separate, unmodified executable across a process boundary. Running
-a program this way is mere aggregation, not the creation of a derivative work,
-so no tool's license reaches into `reposcan`'s own source.
-
-- Permissive licenses (Apache-2.0, MIT, BSD-3-Clause) allow use and
-  redistribution provided the copyright and license notices are preserved. When
-  a built image bundles a tool's binary, that tool's own license and notice
-  files are kept alongside it.
-- LGPL-2.1 (semgrep): `reposcan` uses semgrep as a standalone program rather
-  than linking its library, so it is a plain user of the software. Notices are
-  preserved and the corresponding source is the pinned upstream release.
-- AGPL-3.0 (trufflehog): the strongest copyleft here. Its obligations attach to
-  conveying a modified version, including over a network. `reposcan` runs
-  trufflehog unmodified as a separate process and incorporates none of its code,
-  so it creates no derivative work. Where a published image redistributes the
-  trufflehog binary, AGPL-3.0's source-availability requirement is satisfied by
-  the corresponding unmodified upstream source at the pinned release.
-
-Because every tool is pinned by hash to an official upstream release (see the
-`# verify:` links in the registry), the exact corresponding source for any
-redistributed binary is always identifiable. Local bootstrap, which downloads
-each tool from upstream at run time, redistributes nothing; redistribution
-obligations (notice retention, source availability) apply only to published
-images that bundle the binaries. This summary is provided in good faith and is
-not legal advice; consult each linked license for its authoritative terms.
+`reposcan` uses each tool unmodified, as a separate executable across a process
+boundary, which is mere aggregation rather than a derivative work, so no tool's
+license reaches into its own source. See
+[license compliance](docs/explanation/licensing.md) for the full explanation,
+including the copyleft (AGPL-3.0, LGPL-2.1) cases and the redistribution
+obligations for published images.
