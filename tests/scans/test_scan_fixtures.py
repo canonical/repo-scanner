@@ -87,6 +87,9 @@ def test_every_scan_has_a_fixture() -> None:
 def _run_fixture(name: str, fixture: _FixtureModule) -> None:
     with tempfile.TemporaryDirectory() as directory:
         repo = Path(directory)
+        # tempfile makes the directory 0o700. It is bind-mounted into the tool
+        # container and scanned as uid SCAN_UID (10000), so open it to 0o755.
+        repo.chmod(0o755)
         fixture.plant(repo)
         logger.info("[docker] scanning the %s fixture", name)
         with start_session(
@@ -114,7 +117,7 @@ def test_docker_scan_fixtures_report_findings() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     if len(sys.argv) <= 1:
         test_docker_scan_fixtures_report_findings()
     else:
