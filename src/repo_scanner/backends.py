@@ -4,13 +4,11 @@
 """Execution/build backends: lxd, docker, local."""
 
 import logging
-import os
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Protocol
 
-from repo_scanner import config
 from repo_scanner.execution.context import (
     RESOLVED_PARENT,
     ExecutionContext,
@@ -198,18 +196,15 @@ def select_backend(requested: str | None) -> Backend | Failure:
     """Choose a backend.
 
     Args:
-        requested: The command-line choice, or None to fall back to
-            $REPOSCAN_BACKEND, then saved config, then 'auto'.
+        requested: The resolved backend name, or None for 'auto'. (Env and config
+            fallback happens during parameter resolution, upstream of here.)
 
     Returns:
         The selected backend; 'auto' picks the first available of lxd, docker,
         then local. A Failure if the requested backend is unknown or
         unavailable, or if none is available.
     """
-    backend = requested or os.environ.get("REPOSCAN_BACKEND")
-    if not backend:
-        saved = config.load().get("backend")
-        backend = saved if isinstance(saved, str) else "auto"
+    backend = requested or "auto"
 
     if backend != "auto" and backend not in _BY_NAME:
         return Failure(reason=f"unknown backend {backend}")
@@ -228,44 +223,66 @@ def select_backend(requested: str | None) -> Backend | Failure:
     return Failure(reason="no execution backend is available")
 
 
-def tool_context(
-    backend: Backend, mount_source: str | None = None
+def context_for(
+    backend: Backend,
+    mount_source: str | None = None,
+    *,
+    tool_image: bool = True,
+    image: str | None = None,
 ) -> ExecutionContext | Failure:
-    """A context with the tools available.
+    """The execution context to run in.
 
-    For a local backend, that is the host. For a container backend, it is a container
-    running the tool image: a configured remote image, when available, or the image
-    built on demand and hash-verified before use.
+    A local backend runs on the host (images do not apply). A container backend runs,
+    in order of preference:
+
+      - the given/configured remote `image`, whenever one is set and the backend can
+        pull it -- honored regardless of `tool_image`;
+      - otherwise the tool image, built on demand and hash-verified, when `tool_image`
+        is set;
+      - otherwise a plain base container.
 
     Args:
-        backend: The backend to produce a tool context for.
+        backend: The backend to produce a context for.
         mount_source: A host directory to make available for scanning, or None.
+        tool_image: Prefer the verified tool image (built on demand) when no explicit
+            `image` is given; else a plain base container.
+        image: A resolved remote image reference to pull and run. When set (and the
+            backend can pull), it is used whether or not `tool_image` is set.
 
     Returns:
         A ready context, or a Failure if a pull or build failed.
     """
     builder = backend.image_builder()
     if builder is None:
-        return backend.context(mount_source=mount_source)
+        if image:
+            logger.warning(
+                "the %s backend runs on the host; the configured image %r is ignored",
+                backend.name,
+                image,
+            )
+        return backend.context(mount_source=mount_source)  # local: the host
 
-    # if a remote image is configured, try to use it
-    configured = config.load().get("image")
-    if isinstance(configured, str) and configured:
+    if image:
         puller = backend.image_puller()
         if puller is not None:
-            reference = ensure_pulled(puller, resolve_remote_ref(configured))
+            reference = ensure_pulled(puller, resolve_remote_ref(image))
             if isinstance(reference, Failure):
                 return reference
             return backend.context(reference, mount_source=mount_source)
         logger.warning(
-            "the %s backend cannot use the configured remote image; building locally",
+            "the %s backend cannot pull the configured image %r; %s",
             backend.name,
+            image,
+            "building the tool image" if tool_image else "using a plain container",
         )
 
-    reference = ensure_image(builder, build_spec(current_platform()))
-    if isinstance(reference, Failure):
-        return reference
-    return backend.context(reference, mount_source=mount_source)
+    if tool_image:
+        reference = ensure_image(builder, build_spec(current_platform()))
+        if isinstance(reference, Failure):
+            return reference
+        return backend.context(reference, mount_source=mount_source)
+
+    return backend.context(mount_source=mount_source)  # plain base container
 
 
 @dataclass(frozen=True)
@@ -295,7 +312,11 @@ class Session:
 
 @contextmanager
 def start_session(
-    requested_backend: str | None, *, tool_image: bool, mount_source: str | None = None
+    requested_backend: str | None,
+    *,
+    tool_image: bool,
+    mount_source: str | None = None,
+    image: str | None = None,
 ) -> Generator[Session]:
     """Select a backend and start a context in it.
 
@@ -304,22 +325,20 @@ def start_session(
     the context could not be built or started.
 
     Args:
-        requested_backend: The backend to select, or None to fall back to the
-            environment, saved config, then 'auto'.
+        requested_backend: The backend to select, or None for 'auto'.
         tool_image: Use the verified tool image (built on demand) when True,
             else a plain container.
         mount_source: A host directory to make available for scanning, or None. The
             session's `target` reports where it is reachable in the context.
+        image: A resolved remote image to pull and run instead of building the tool
+            image locally, or None to build it.
     """
     backend = select_backend(requested_backend)
     if isinstance(backend, Failure):
         logger.error(backend.reason)
         yield Session(None, "", 2)
         return
-    if tool_image:
-        ctx = tool_context(backend, mount_source)
-    else:
-        ctx = backend.context(mount_source=mount_source)
+    ctx = context_for(backend, mount_source, tool_image=tool_image, image=image)
     if isinstance(ctx, Failure):
         logger.error(ctx.reason)
         yield Session(None, "", 1)

@@ -9,8 +9,9 @@ it as a table, as JSON, or as a sqlite database.
 
 import logging
 
+from repo_scanner import sqlitedb
 from repo_scanner.execution.process import Failure
-from repo_scanner.scans import cyclonedx, output, sarif, sqlitedb
+from repo_scanner.scans import cyclonedx, output, reportdb, sarif
 from repo_scanner.scans.model import Artifact
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ def _load(input_path: str) -> Artifact | None:
         logger.error("could not read %s: %s", input_path, exc)
         return None
     if sqlitedb.is_sqlite(data):
-        artifact = sqlitedb.read(input_path)
+        artifact = reportdb.read(input_path)
     else:
         text = data.decode("utf-8", "replace")
         artifact = sarif.parse(text) or cyclonedx.parse(text)

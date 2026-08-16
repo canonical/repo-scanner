@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import sarif
 from repo_scanner.scans.model import (
-    NO_PARAMETERS,
+    INCLUDE_DEV_DEPENDENCIES,
     Parameter,
     ToolInvocation,
     ToolResult,
@@ -34,8 +34,9 @@ class ScaScan:
 
     name: ClassVar[str] = "sca"
     summary: ClassVar[str] = "Dependency vulnerabilities (trivy, grype, govulncheck)."
-    parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
+    parameters: ClassVar[tuple[Parameter, ...]] = (INCLUDE_DEV_DEPENDENCIES,)
     resolves_dependencies: ClassVar[bool] = True  # resolve transitive deps first
+    include_dev_dependencies: bool = False
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The trivy, grype, and govulncheck invocations for `target`.

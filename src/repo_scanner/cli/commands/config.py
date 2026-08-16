@@ -1,0 +1,121 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""The `reposcan config` group: read and write persistent configuration.
+
+The supported keys are exactly the parameters declared config-settable on the
+command base; each validates its own value the same way resolution does.
+"""
+
+import logging
+import sys
+
+from repo_scanner.cli.commands.base import Command
+from repo_scanner.cli.engine.resolve import coerce, load, save
+from repo_scanner.cli.spec import Group, params_of, positional
+from repo_scanner.table import render_table
+
+logger = logging.getLogger(__name__)
+
+# The config keys, keyed by name: every parameter marked config-settable.
+_KEYS = {p.name: p for p in params_of(Command) if p.config}
+
+
+class ConfigSet(Command):
+    name = "set"
+    help = "Set a config value."
+
+    key: str = positional(help="The config key to set.")
+    value: str = positional(help="The value to store.")
+
+    def run(self) -> int:
+        param = _KEYS.get(self.key)
+        if param is None:
+            logger.error("unknown config key: %s", self.key)
+            return 2
+        _, error = coerce(param, self.value, "config")
+        if error is not None:
+            logger.error("%s", error)
+            return 2
+        settings = load()
+        settings[self.key] = self.value
+        error = save(settings)
+        if error is not None:
+            logger.error("%s", error)
+            return 1
+        return 0
+
+
+class ConfigGet(Command):
+    name = "get"
+    help = "Get a config value, or all values when no key is given."
+
+    key: str | None = positional(required=False, help="The config key to read.")
+
+    def run(self) -> int:
+        settings = load()
+        if self.key is None:
+            rows = [[name, str(value)] for name, value in sorted(settings.items())]
+            sys.stdout.write(render_table(["key", "value"], rows))
+            return 0
+        if self.key not in _KEYS:
+            logger.error("config key '%s' is not known", self.key)
+        if self.key not in settings:
+            logger.error("config key not set: %s", self.key)
+            return 1
+        sys.stdout.write(f"{settings[self.key]}\n")
+        return 0
+
+
+class ConfigUnset(Command):
+    name = "unset"
+    help = "Remove a config value."
+
+    key: str = positional(help="The config key to remove.")
+
+    def run(self) -> int:
+        settings = load()
+        if self.key not in settings:
+            logger.info("config key not set: %s", self.key)
+            return 0
+        del settings[self.key]
+        error = save(settings)
+        if error is not None:
+            logger.error("%s", error)
+            return 1
+        return 0
+
+
+class ConfigKeys(Command):
+    name = "keys"
+    help = "List all supported config keys."
+
+    def run(self) -> int:
+        rows = [[name, param.help] for name, param in sorted(_KEYS.items())]
+        sys.stdout.write(render_table(["key", "description"], rows))
+        return 0
+
+
+class ConfigOptions(Command):
+    name = "options"
+    help = "List the supported values for a config key."
+
+    key: str = positional(help="The config key to describe.")
+
+    def run(self) -> int:
+        param = _KEYS.get(self.key)
+        if param is None:
+            logger.error("unknown config key: %s", self.key)
+            return 2
+        if param.choices is not None:
+            for choice in param.choices:
+                sys.stdout.write(f"{choice}\n")
+            return 0
+        sys.stdout.write(f"{self.key} accepts any value: {param.help}\n")
+        return 0
+
+
+class ConfigGroup(Group):
+    name = "config"
+    help = "Get or set persistent configuration."
+    subcommands = (ConfigSet, ConfigGet, ConfigUnset, ConfigKeys, ConfigOptions)

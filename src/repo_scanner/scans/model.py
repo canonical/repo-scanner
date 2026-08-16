@@ -15,7 +15,7 @@ import logging
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, ClassVar, NamedTuple, Protocol, runtime_checkable
+from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from repo_scanner.execution.context import SCAN_UID, ExecutionContext, read_file
 from repo_scanner.execution.process import ExecResult, Failure
@@ -24,6 +24,7 @@ from repo_scanner.scans.exclude import (
     IgnoredPaths,
     build_exclude_flags,
 )
+from repo_scanner.sqlitedb import Table
 from repo_scanner.tools.registry import TOOLS
 
 logger = logging.getLogger(__name__)
@@ -34,14 +35,6 @@ class ArtifactKind(str, Enum):
 
     SARIF = "sarif"
     CYCLONEDX = "cyclonedx"
-
-
-class Table(NamedTuple):
-    """A named database table for an artifact: its name, columns, and string rows."""
-
-    name: str
-    columns: tuple[str, ...]
-    rows: list[tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -132,6 +125,8 @@ class Parameter:
         choices: The allowed values, or None for any.
         default: The value used when the option is omitted.
         type: A converter for the raw string (e.g. int), or None for a string.
+        flag: When True, the option is a boolean switch (`--<name>`, no value)
+            defaulting False, rather than a value option.
         requires: A mapping of other parameter -> required value this option depends
             on, or None. When set, the option is valid only if each named parameter
             has the given value, e.g. depth `requires={"mode": "history"}`. Checked
@@ -143,11 +138,21 @@ class Parameter:
     choices: tuple[str, ...] | None = None
     default: Any = None
     type: Callable[[str], Any] | None = None
+    flag: bool = False
     requires: dict[str, str] | None = None
 
 
 # A scan with no scan-specific options declares this for its `parameters`.
 NO_PARAMETERS: tuple[Parameter, ...] = ()
+
+# Shared by the dependency-resolving scans (sbom, sca): whether to include
+# development dependencies when resolving the dependency tree.
+INCLUDE_DEV_DEPENDENCIES = Parameter(
+    "include_dev_dependencies",
+    "Include development dependencies when resolving the dependency tree.",
+    default=False,
+    flag=True,
+)
 
 
 def check_parameters(

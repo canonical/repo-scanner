@@ -1,47 +1,49 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for CLI argument parsing and dispatch (repo_scanner.cli)."""
+"""Tests for CLI parsing, resolution, and dispatch (repo_scanner.cli)."""
 
-import argparse
 import logging
 import sys
 import tempfile
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import Any, ClassVar
 
-import repo_scanner.cli.commands.scan as scan_cmd_module
-from repo_scanner.cli.commands.scan import build_scan_parser
-from repo_scanner.cli.main import main
-from repo_scanner.cli.nodes import Context
-from repo_scanner.cli.options import GLOBAL_OPTIONS, LOG_LEVELS
+from repo_scanner.cli import main
+from repo_scanner.cli.app import Reposcan
+from repo_scanner.cli.commands.base import Command
+from repo_scanner.cli.commands.scan import _scan_command
+from repo_scanner.cli.engine.parse import parse
+from repo_scanner.cli.engine.resolve import LOG_LEVELS, resolve
+from repo_scanner.cli.spec import Cli, Group
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import sarif
-from repo_scanner.scans.model import (
-    Artifact,
-    Parameter,
-    Scan,
-    ToolInvocation,
-    ToolResult,
-)
+from repo_scanner.scans.model import Artifact, Parameter, ToolInvocation, ToolResult
 
 
-def test_main_dispatches_and_returns_its_exit_code() -> None:
-    """`exec` runs the given command and forwards its exit code (local backend)."""
+def _resolved(argv: list[str], env: dict[str, str] | None = None) -> dict[str, Any]:
+    """Parse `argv` against the real tree and resolve, with no env/config by default."""
+    parsed = parse(Reposcan, Command, argv, "reposcan")
+    assert parsed.error is None, parsed.error
+    values, error = resolve(parsed.scope, parsed.raw, env=env or {}, config={})
+    assert error is None, error
+    return values
+
+
+# --- dispatch (end to end through main) --------------------------------------
+
+
+def test_dispatch_forwards_the_command_exit_code() -> None:
     prog = [sys.executable, "-c", "raise SystemExit(5)"]
     assert main(["--backend", "local", "exec", "--", *prog]) == 5
 
 
-def test_global_option_flows_down_after_the_subcommand() -> None:
-    """A global option placed after the subcommand is accepted (flow-down)."""
-    prog = [sys.executable, "-c", "raise SystemExit(5)"]
-    assert main(["exec", "--backend", "local", "--", *prog]) == 5
+def test_a_global_is_accepted_after_the_subcommand() -> None:
+    prog = [sys.executable, "-c", "raise SystemExit(6)"]
+    assert main(["exec", "--backend", "local", "--", *prog]) == 6
 
 
-def test_verbosity_sets_the_root_log_level() -> None:
-    """`--verbosity` configures root logging before the subcommand runs."""
+def test_verbosity_configures_root_logging_before_dispatch() -> None:
     saved = logging.getLogger().level
     try:
         prog = [sys.executable, "-c", ""]
@@ -51,9 +53,37 @@ def test_verbosity_sets_the_root_log_level() -> None:
         logging.getLogger().setLevel(saved)
 
 
+def test_usage_errors_return_2() -> None:
+    assert main(["frobnicate"]) == 2  # unknown command
+    assert main(["--nope", "exec"]) == 2  # unknown option
+    assert main(["--uid", "-1", "exec", "--", "true"]) == 2  # invalid value
+
+
+# --- flow-down: a global resolves anywhere, at any depth ----------------------
+
+
+def test_a_global_resolves_from_the_middle_of_a_deep_command() -> None:
+    values = _resolved(["image", "cache", "--backend", "local", "remove", "r1"])
+    assert values["backend"] == "local"
+    assert values["reference"] == "r1"
+
+
+def test_cli_beats_env_beats_default_for_a_global() -> None:
+    assert _resolved(["exec", "--", "x"])["backend"] == "auto"  # default
+    with_env = _resolved(["exec", "--", "x"], {"REPOSCAN_BACKEND": "docker"})
+    assert with_env["backend"] == "docker"  # env over default
+    with_cli = _resolved(
+        ["--backend", "local", "exec", "--", "x"], {"REPOSCAN_BACKEND": "docker"}
+    )
+    assert with_cli["backend"] == "local"  # cli over env
+
+
+# --- scan options resolve like any other --------------------------------------
+
+
 @dataclass(frozen=True)
 class _FakeScan:
-    """A test-only scan whose declared parameters exercise the CLI generically."""
+    """A test-only scan whose declared parameters exercise the scan factory."""
 
     name: ClassVar[str] = "faux"
     summary: ClassVar[str] = "A fake scan for testing the CLI."
@@ -72,67 +102,41 @@ class _FakeScan:
         return sarif.SarifDocument({"runs": []})
 
 
-@dataclass(frozen=True)
-class _FakeResolvingScan:
-    """A fake scan that resolves dependencies (so it gets --allow-code-execution)."""
-
-    name: ClassVar[str] = "resolving"
-    summary: ClassVar[str] = "A fake dependency-resolving scan."
-    parameters: ClassVar[tuple[Parameter, ...]] = ()
-    resolves_dependencies: ClassVar[bool] = True
-
-    def invocations(self, target: str) -> list[ToolInvocation]:
-        return []
-
-    def consolidate(self, results: list[ToolResult]) -> Artifact | Failure:
-        return sarif.SarifDocument({"runs": []})
+def _fake_scan_tree() -> type[Group]:
+    command = _scan_command(_FakeScan)
+    return type(
+        "Root", (Group,), {"name": "reposcan", "help": "", "subcommands": (command,)}
+    )
 
 
-@contextmanager
-def _only_fake_scan() -> Iterator[None]:
-    """Point the scan group's registry at just the fake scan for the duration.
-
-    Patches `SCANS` on the module that reads it (`repo_scanner.cli.commands.scan`),
-    not a re-export -- there is no test seam in the real code for this.
-    """
-    saved = scan_cmd_module.SCANS
-    registry: dict[str, type[Scan]] = {_FakeScan.name: _FakeScan}
-    scan_cmd_module.SCANS = registry
-    try:
-        yield
-    finally:
-        scan_cmd_module.SCANS = saved
+def _resolved_scan(argv: list[str]) -> dict[str, Any]:
+    parsed = parse(_fake_scan_tree(), Command, argv, "reposcan")
+    assert parsed.error is None, parsed.error
+    values, error = resolve(parsed.scope, parsed.raw, env={}, config={})
+    assert error is None, error
+    return values
 
 
-def _parser() -> argparse.ArgumentParser:
-    return build_scan_parser(_FakeScan, Context({}, GLOBAL_OPTIONS))
+def test_scan_parameters_become_options_that_resolve() -> None:
+    assert _resolved_scan(["faux", "/repo"])["flavor"] == "plain"  # default
+    assert _resolved_scan(["faux", "/repo", "--flavor", "rich"])["flavor"] == "rich"
+    assert _resolved_scan(["faux", "/repo", "--level", "3"])["level"] == 3  # converted
 
 
-def test_scan_options_are_built_from_declared_parameters() -> None:
-    args = _parser().parse_args(["/repo", "--flavor", "rich"])
-    assert args.flavor == "rich"
-    # a parameter's default is applied when the option is omitted.
-    args = _parser().parse_args(["/repo"])
-    assert args.flavor == "plain" and args.level is None
+def test_scan_requirement_is_enforced_before_any_backend() -> None:
+    # --level requires --flavor rich; with the default flavor (plain) it is rejected.
+    app = Cli("reposcan", root=_fake_scan_tree(), base=Command)
+    with tempfile.TemporaryDirectory() as repo:
+        assert app.run(["faux", repo, "--level", "3"]) == 2
 
 
-def test_scan_accepts_output_format_and_limit_options() -> None:
-    args = _parser().parse_args(["/repo", "--format", "json", "--limit", "5", "--wrap"])
-    assert args.format == "json" and args.limit == 5 and args.wrap is True
-
-
-def test_allow_code_execution_only_on_dependency_resolving_scans() -> None:
-    ctx = Context({}, GLOBAL_OPTIONS)
-    resolving = build_scan_parser(_FakeResolvingScan, ctx)
-    nonresolving = build_scan_parser(_FakeScan, ctx)
-    # the resolving scan declares --allow-code-execution (default False) ...
-    assert resolving.parse_args(["/repo"]).allow_code_execution is False
-    # ... and the non-resolving scan does not declare it at all.
-    assert not hasattr(nonresolving.parse_args(["/repo"]), "allow_code_execution")
-
-
-def test_scan_parameter_requirement_is_enforced_before_any_backend() -> None:
-    """--level requires --flavor rich; with the default flavor it is rejected."""
-    with _only_fake_scan(), tempfile.TemporaryDirectory() as repo:
-        code = main(["scan", "faux", repo, "--level", "3"])
-    assert code == 2
+def test_a_boolean_scan_flag_resolves_from_cli_env_and_default() -> None:
+    # --include-dev-dependencies is a real, env-settable flag on both sbom and sca.
+    for scan in ("sbom", "sca"):
+        assert _resolved(["scan", scan, "."])["include_dev_dependencies"] is False
+        with_cli = _resolved(["scan", scan, ".", "--include-dev-dependencies"])
+        assert with_cli["include_dev_dependencies"] is True
+        with_env = _resolved(
+            ["scan", scan, "."], {"REPOSCAN_INCLUDE_DEV_DEPENDENCIES": "1"}
+        )
+        assert with_env["include_dev_dependencies"] is True

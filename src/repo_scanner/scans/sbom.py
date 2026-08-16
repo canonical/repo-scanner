@@ -19,7 +19,7 @@ from typing import ClassVar
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import cyclonedx
 from repo_scanner.scans.model import (
-    NO_PARAMETERS,
+    INCLUDE_DEV_DEPENDENCIES,
     Parameter,
     ToolInvocation,
     ToolResult,
@@ -37,8 +37,9 @@ class SbomScan:
 
     name: ClassVar[str] = "sbom"
     summary: ClassVar[str] = "Software bill of materials (trivy, syft, cdxgen)."
-    parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
+    parameters: ClassVar[tuple[Parameter, ...]] = (INCLUDE_DEV_DEPENDENCIES,)
     resolves_dependencies: ClassVar[bool] = True  # resolve transitive deps first
+    include_dev_dependencies: bool = False
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The trivy, syft, and cdxgen invocations for `target`.

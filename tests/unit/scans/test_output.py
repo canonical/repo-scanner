@@ -11,8 +11,9 @@ import sqlite3
 import tempfile
 from contextlib import redirect_stdout
 
+from repo_scanner import table
 from repo_scanner.execution.process import Failure
-from repo_scanner.scans import cyclonedx, output, sarif
+from repo_scanner.scans import cyclonedx, sarif
 from repo_scanner.scans.output import Format, emit
 
 
@@ -77,7 +78,7 @@ def test_limit_truncates_wrap_expands_and_neither_exceeds_the_terminal() -> None
         wrapped.getvalue().splitlines(),
     )
     assert len(plain_rows[2:]) == 1  # default clips the message to one line
-    assert 1 < len(wrapped_rows[2:]) <= output._MAX_WRAP_LINES  # --wrap spans, capped
+    assert 1 < len(wrapped_rows[2:]) <= table._MAX_WRAP_LINES  # --wrap spans, capped
     for line in plain_rows + wrapped_rows:
         assert len(line) <= columns  # no line is wider than the terminal
 

@@ -4,8 +4,8 @@
 """Tests for backend selection (repo_scanner.backends).
 
 Availability is controlled by patching backends.run_process (the liveness probe);
-local is always available. Precedence is exercised by patching the environment and
-config.load.
+local is always available. `select_backend` takes an already-resolved backend name
+(env/config precedence happens upstream, in parameter resolution).
 """
 
 import os
@@ -13,15 +13,14 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 
 import repo_scanner.backends as backends
-import repo_scanner.config as config
 from repo_scanner.backends import (
     Backend,
     DockerBackend,
     LocalBackend,
     LxdBackend,
+    context_for,
     select_backend,
     start_session,
-    tool_context,
 )
 from repo_scanner.execution.docker import DockerContext
 from repo_scanner.execution.local import LocalContext
@@ -57,32 +56,6 @@ def _availability(*, lxd_ok: bool, docker_ok: bool) -> Iterator[None]:
         backends.run_process = saved
 
 
-@contextmanager
-def _env(name: str, value: str | None) -> Iterator[None]:
-    saved = os.environ.get(name)
-    if value is None:
-        os.environ.pop(name, None)
-    else:
-        os.environ[name] = value
-    try:
-        yield
-    finally:
-        if saved is None:
-            os.environ.pop(name, None)
-        else:
-            os.environ[name] = saved
-
-
-@contextmanager
-def _saved_config(settings: dict[str, str]) -> Iterator[None]:
-    saved = config.load
-    config.load = lambda: settings
-    try:
-        yield
-    finally:
-        config.load = saved
-
-
 def _backend(requested: str | None) -> Backend:
     chosen = select_backend(requested)
     assert not isinstance(chosen, Failure), chosen
@@ -98,31 +71,14 @@ def test_auto_selects_the_first_available_in_precedence_order() -> None:
         assert _backend("auto").name == "local"  # always available, the last resort
 
 
-def test_selection_precedence_request_over_env_over_config_over_auto() -> None:
-    # An explicit request wins over env and config.
-    with _env("REPOSCAN_BACKEND", "docker"), _saved_config({"backend": "lxd"}):
+def test_select_backend_honours_the_resolved_name_and_treats_none_as_auto() -> None:
+    # An explicit resolved name selects exactly that backend.
+    with _availability(lxd_ok=True, docker_ok=True):
         assert _backend("local").name == "local"
-    # No request: env wins over config.
-    with (
-        _availability(lxd_ok=True, docker_ok=True),
-        _env("REPOSCAN_BACKEND", "docker"),
-        _saved_config({"backend": "lxd"}),
-    ):
+        assert _backend("docker").name == "docker"
+    # None means auto: the first available in precedence order.
+    with _availability(lxd_ok=False, docker_ok=True):
         assert _backend(None).name == "docker"
-    # No request or env: saved config is used.
-    with (
-        _availability(lxd_ok=True, docker_ok=True),
-        _env("REPOSCAN_BACKEND", None),
-        _saved_config({"backend": "lxd"}),
-    ):
-        assert _backend(None).name == "lxd"
-    # Nothing set: auto (here, with no daemons, falling through to local).
-    with (
-        _availability(lxd_ok=False, docker_ok=False),
-        _env("REPOSCAN_BACKEND", None),
-        _saved_config({}),
-    ):
-        assert _backend(None).name == "local"
 
 
 def test_invalid_selections_are_failures() -> None:
@@ -156,9 +112,9 @@ def test_resolved_parent_is_the_image_dir_for_containers_and_a_cache_for_local()
     assert local == "/tmp/xdg-cache/reposcan/resolved"
 
 
-def test_tool_context_local_on_host_container_in_the_verified_image() -> None:
+def test_context_local_on_host_container_in_the_verified_image() -> None:
     # Local: tools are on the host, no image is built.
-    assert isinstance(tool_context(LocalBackend()), LocalContext)
+    assert isinstance(context_for(LocalBackend()), LocalContext)
 
     # Container: the tool image (here stubbed via ensure_image) is run; a build
     # failure surfaces as a Failure.
@@ -171,15 +127,15 @@ def test_tool_context_local_on_host_container_in_the_verified_image() -> None:
     saved = backends.ensure_image
     try:
         backends.ensure_image = ensure_ok
-        ctx = tool_context(DockerBackend())
+        ctx = context_for(DockerBackend())
         assert isinstance(ctx, DockerContext) and ctx._image == "reposcan:tools"
         backends.ensure_image = ensure_fail
-        assert isinstance(tool_context(DockerBackend()), Failure)
+        assert isinstance(context_for(DockerBackend()), Failure)
     finally:
         backends.ensure_image = saved
 
 
-def test_tool_context_uses_a_configured_remote_image_when_the_backend_can() -> None:
+def test_a_configured_image_is_used_whenever_the_backend_can_pull_it() -> None:
     def remote_ok(puller: object, ref: str) -> str:
         return f"pulled:{ref}"
 
@@ -192,20 +148,24 @@ def test_tool_context_uses_a_configured_remote_image_when_the_backend_can() -> N
     saved_pulled = backends.ensure_pulled
     saved_build = backends.ensure_image
     try:
-        with _saved_config({"image": "canonical"}):
-            # Docker resolves the shorthand, pulls it, and runs the pulled image.
-            backends.ensure_pulled = remote_ok
-            ctx = tool_context(DockerBackend())
-            assert isinstance(ctx, DockerContext)
-            assert ctx._image == f"pulled:{CANONICAL_REF}"
-            # A pull failure surfaces as a Failure.
-            backends.ensure_pulled = remote_fail
-            assert isinstance(tool_context(DockerBackend()), Failure)
-            # LXD cannot use a remote image yet, so it ignores the config and builds.
-            backends.ensure_image = build_ok
-            lxd_ctx = tool_context(LxdBackend())
-            assert isinstance(lxd_ctx, LxdContext)
-            assert lxd_ctx._image == "reposcan:tools"
+        # Docker resolves the shorthand, pulls it, and runs the pulled image.
+        backends.ensure_pulled = remote_ok
+        ctx = context_for(DockerBackend(), image="canonical")
+        assert isinstance(ctx, DockerContext)
+        assert ctx._image == f"pulled:{CANONICAL_REF}"
+        # An explicit image is honored even when tool_image is not requested (the
+        # bootstrap path), rather than falling back to a plain base container.
+        ctx = context_for(DockerBackend(), tool_image=False, image="canonical")
+        assert isinstance(ctx, DockerContext)
+        assert ctx._image == f"pulled:{CANONICAL_REF}"
+        # A pull failure surfaces as a Failure.
+        backends.ensure_pulled = remote_fail
+        assert isinstance(context_for(DockerBackend(), image="canonical"), Failure)
+        # LXD cannot pull yet, so it warns and builds the tool image instead.
+        backends.ensure_image = build_ok
+        lxd_ctx = context_for(LxdBackend(), image="canonical")
+        assert isinstance(lxd_ctx, LxdContext)
+        assert lxd_ctx._image == "reposcan:tools"
     finally:
         backends.ensure_pulled = saved_pulled
         backends.ensure_image = saved_build

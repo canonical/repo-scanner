@@ -14,7 +14,8 @@ import shlex
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from repo_scanner.scans.model import ArtifactKind, Table, ToolInvocationRecord
+from repo_scanner.scans.model import ArtifactKind, ToolInvocationRecord
+from repo_scanner.sqlitedb import Table
 
 # The property name carrying each contributing scanner on a merged component.
 SCANNER_PROPERTY = "reposcan:scanner"
