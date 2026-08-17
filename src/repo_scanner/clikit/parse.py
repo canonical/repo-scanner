@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from repo_scanner.cli.spec import Command, Group, Param, params_of
+from repo_scanner.clikit.spec import Action, Group, Param, params_of
 
 
 @dataclass
@@ -23,26 +23,26 @@ class Parsed:
     """The outcome of scanning argv against the tree.
 
     Exactly one condition will be truthy: `error`, `help`, type(`node`) == `Group`,
-    or type(`command`) == Command.
+    or type(`command`) == Action.
     """
 
     prog: str
-    node: type[Command | Group]
+    node: type[Action | Group]
     scope: list[Param]
     raw: dict[str, Any] = field(default_factory=dict)
-    command: type[Command] | None = None
+    command: type[Action] | None = None
     help: bool = False
     error: str | None = None
 
 
 def parse(
-    root: type[Group], base: type[Command], argv: list[str], prog_name: str
+    root: type[Group], base: type[Action], argv: list[str], prog_name: str
 ) -> Parsed:
     """Scan `argv` against the tree; `base`'s parameters are the flow-down globals."""
     scope: dict[str, Param] = {p.name: p for p in params_of(base)}
-    node: type[Command | Group] = root
+    node: type[Action | Group] = root
     prog = [prog_name]
-    command: type[Command] | None = None
+    command: type[Action] | None = None
     raw: dict[str, Any] = {}
     positionals: list[str] = []
     singles: list[Param] = []
@@ -127,7 +127,7 @@ def _find_option(scope: dict[str, Param], flag: str) -> Param | None:
     return None
 
 
-def _child(node: type[Command | Group], name: str) -> type[Command | Group] | None:
+def _child(node: type[Action | Group], name: str) -> type[Action | Group] | None:
     subcommands = getattr(node, "subcommands", ())
     for child in subcommands:
         if child.name == name:

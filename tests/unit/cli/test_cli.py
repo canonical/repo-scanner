@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for CLI parsing, resolution, and dispatch (repo_scanner.cli)."""
+"""Tests for CLI parsing, resolution, and dispatch (repo_scanner.clikit and app)."""
 
 import logging
 import sys
@@ -9,13 +9,10 @@ import tempfile
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from repo_scanner.cli import main
-from repo_scanner.cli.app import Reposcan
-from repo_scanner.cli.commands.base import Command
-from repo_scanner.cli.commands.scan import _scan_command
-from repo_scanner.cli.engine.parse import parse
-from repo_scanner.cli.engine.resolve import LOG_LEVELS, resolve
-from repo_scanner.cli.spec import Cli, Group
+from repo_scanner.actions.base import Action
+from repo_scanner.actions.scan import _scan_command
+from repo_scanner.app import Reposcan, main
+from repo_scanner.clikit import LOG_LEVELS, Cli, Group, parse, resolve
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import sarif
 from repo_scanner.scans.model import Artifact, Parameter, ToolInvocation, ToolResult
@@ -23,7 +20,7 @@ from repo_scanner.scans.model import Artifact, Parameter, ToolInvocation, ToolRe
 
 def _resolved(argv: list[str], env: dict[str, str] | None = None) -> dict[str, Any]:
     """Parse `argv` against the real tree and resolve, with no env/config by default."""
-    parsed = parse(Reposcan, Command, argv, "reposcan")
+    parsed = parse(Reposcan, Action, argv, "reposcan")
     assert parsed.error is None, parsed.error
     values, error = resolve(parsed.scope, parsed.raw, env=env or {}, config={})
     assert error is None, error
@@ -110,7 +107,7 @@ def _fake_scan_tree() -> type[Group]:
 
 
 def _resolved_scan(argv: list[str]) -> dict[str, Any]:
-    parsed = parse(_fake_scan_tree(), Command, argv, "reposcan")
+    parsed = parse(_fake_scan_tree(), Action, argv, "reposcan")
     assert parsed.error is None, parsed.error
     values, error = resolve(parsed.scope, parsed.raw, env={}, config={})
     assert error is None, error
@@ -125,7 +122,7 @@ def test_scan_parameters_become_options_that_resolve() -> None:
 
 def test_scan_requirement_is_enforced_before_any_backend() -> None:
     # --level requires --flavor rich; with the default flavor (plain) it is rejected.
-    app = Cli("reposcan", root=_fake_scan_tree(), base=Command)
+    app = Cli("reposcan", root=_fake_scan_tree(), base=Action)
     with tempfile.TemporaryDirectory() as repo:
         assert app.run(["faux", repo, "--level", "3"]) == 2
 

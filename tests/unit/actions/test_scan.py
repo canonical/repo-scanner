@@ -1,11 +1,10 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the `reposcan scan` command (repo_scanner.actions.scan).
+"""Tests for the `reposcan scan` action (repo_scanner.actions.scan).
 
-run_scan is patched to a scripted artifact/Failure, so this covers the command's
-own job: writing the report and choosing the exit code (0 clean / 3 findings / 1
-error).
+run_scan is patched to a scripted artifact/Failure, so this covers the action's own
+job: writing the report and choosing the exit code (0 clean / 3 findings / 1 error).
 """
 
 import io

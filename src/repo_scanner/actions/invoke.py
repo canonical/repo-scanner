@@ -6,6 +6,9 @@
 import logging
 import sys
 
+from repo_scanner.actions.base import Action
+from repo_scanner.backends import start_session
+from repo_scanner.clikit import option, positional, remainder
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
 from repo_scanner.tools.registry import TOOLS
@@ -14,6 +17,32 @@ logger = logging.getLogger(__name__)
 
 # Exit code returned when the tool is killed for exceeding its timeout.
 TIMEOUT_EXIT_CODE = 124
+
+
+class InvokeAction(Action):
+    name = "invoke"
+    help = "Run an installed tool, passing arguments through to it."
+
+    timeout: float | None = option(
+        convert=float,
+        help="Kill the tool if it runs longer than this (default: no limit).",
+    )
+    tool: str = positional(help="The installed tool to run.")
+    argv: list[str] = remainder(
+        help="Arguments for the tool, after a double-hyphen (invoke semgrep -- --help)."
+    )
+
+    def run(self) -> int:
+        with start_session(self.backend, tool_image=True, image=self.image) as session:
+            if not session.ok:
+                return session.exit_code
+            return invoke(
+                session.context,
+                self.tool,
+                self.argv,
+                session.tool_root,
+                timeout=self.timeout,
+            )
 
 
 def invoke(
@@ -26,16 +55,8 @@ def invoke(
 ) -> int:
     """Run the installed tool `name` with `args`, forwarding its output and exit code.
 
-    Args:
-        ctx: The started context to run the tool in.
-        name: The installed tool to run.
-        args: Arguments passed through to the tool.
-        install_root: Where the tools are installed.
-        timeout: Kill the tool after this many seconds, or None for no limit.
-
-    Returns:
-        2 for an unknown tool, 1 when it is not installed or could not be
-        started, 124 on timeout, or the tool's own exit code.
+    Returns 2 for an unknown tool, 1 when it is not installed or could not be started,
+    124 on timeout, or the tool's own exit code.
     """
     tool = TOOLS.get(name)
     if tool is None:

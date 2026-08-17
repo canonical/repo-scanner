@@ -10,11 +10,45 @@ it as a table, as JSON, or as a sqlite database.
 import logging
 
 from repo_scanner import sqlitedb
+from repo_scanner.actions.base import Action
+from repo_scanner.clikit import flag, option, positional
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import cyclonedx, output, reportdb, sarif
 from repo_scanner.scans.model import Artifact
+from repo_scanner.scans.output import DEFAULT_ROW_LIMIT, Format
 
 logger = logging.getLogger(__name__)
+
+FORMATS = tuple(f.value for f in Format)
+
+
+class RenderAction(Action):
+    name = "render"
+    help = "Render a saved report (JSON or sqlite) as a table, JSON, or sqlite."
+
+    path: str = positional(
+        help="A saved report: SARIF/CycloneDX JSON or a sqlite database."
+    )
+    output: str | None = option(
+        extra_flags="-o", help="Write to FILE instead of stdout (required for sqlite)."
+    )
+    format: str | None = option("-f", choices=FORMATS, help="Output format.")
+    limit: int = option(
+        extra_flags="-n",
+        default=DEFAULT_ROW_LIMIT,
+        convert=int,
+        help="Maximum rows shown in the table.",
+    )
+    wrap: bool = flag(help="Wrap long table cells instead of truncating.")
+
+    def run(self) -> int:
+        return render(
+            self.path,
+            fmt=self.format,
+            output_path=self.output,
+            limit=self.limit,
+            wrap=self.wrap,
+        )
 
 
 def render(
@@ -22,21 +56,13 @@ def render(
     *,
     fmt: str | None = None,
     output_path: str | None = None,
-    limit: int = output.DEFAULT_ROW_LIMIT,
+    limit: int = DEFAULT_ROW_LIMIT,
     wrap: bool = False,
 ) -> int:
     """Render the report at `input_path` in the chosen format.
 
-    Args:
-        input_path: A saved report: SARIF/CycloneDX JSON or a sqlite database.
-        fmt: "table", "json", or "sqlite"; None renders the default table.
-        output_path: A file to write to, or None for stdout. Required for "sqlite".
-        limit: The maximum number of rows to show in a table.
-        wrap: When True, wrap long table cells across multiple lines.
-
-    Returns:
-        0 on success; 2 on a bad input or an unrecognized report; 1 if it could not be
-        written (including a missing or existing sqlite output file).
+    Returns 0 on success; 2 on a bad input or an unrecognized report; 1 if it could not
+    be written (including a missing or existing sqlite output file).
     """
     artifact = _load(input_path)
     if artifact is None:
@@ -44,7 +70,7 @@ def render(
     failure = output.emit(
         artifact,
         output=output_path,
-        fmt=output.Format(fmt) if fmt else None,
+        fmt=Format(fmt) if fmt else None,
         limit=limit,
         wrap=wrap,
     )

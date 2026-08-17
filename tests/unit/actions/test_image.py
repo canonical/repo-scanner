@@ -1,10 +1,11 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the `reposcan image build` command (repo_scanner.actions.image).
+"""Tests for the `reposcan image build` action (repo_scanner.actions.image).
 
-The builder is chosen by main and passed in, so this covers only run/print/force and
-the failure exit code. `ensure_image` is patched so no daemon is touched.
+The builder is chosen by the action and passed in, so this covers only
+build/print/force and the failure exit code. `ensure_image` is patched so no daemon
+is touched.
 """
 
 import io

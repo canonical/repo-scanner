@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the `reposcan exec` command (repo_scanner.actions.exec)."""
+"""Tests for the `reposcan exec` action (repo_scanner.actions.exec)."""
 
 import io
 import sys

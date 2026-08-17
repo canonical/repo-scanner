@@ -19,7 +19,7 @@ license = "GPL-3.0-or-later"
 dependencies = []
 
 [project.scripts]
-reposcan = "repo_scanner.cli:main"
+reposcan = "repo_scanner.app:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/repo_scanner"]

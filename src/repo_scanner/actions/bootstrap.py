@@ -9,36 +9,54 @@ are pulled in automatically.
 """
 
 import logging
+import sys
 
+from repo_scanner.actions.base import Action
+from repo_scanner.backends import start_session
+from repo_scanner.clikit import flag, positional
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
-from repo_scanner.tools.install import install_plan
+from repo_scanner.tools.install import current_platform, install_plan
 from repo_scanner.tools.model import Platform, Tool
 from repo_scanner.tools.registry import TOOLS
 
 logger = logging.getLogger(__name__)
 
 
+class BootstrapAction(Action):
+    name = "bootstrap"
+    help = "Install tools onto the host. Runs locally unless --backend is given."
+
+    tools: list[str] = positional(
+        many=True,
+        help="Tools to install; prerequisites are added. Empty installs every tool.",
+    )
+    confirm: bool = flag(help="Skip interactive confirmation before installing tools.")
+
+    def run(self) -> int:
+        backend = self.backend if self.backend != "auto" else "local"
+        with start_session(backend, tool_image=False, image=self.image) as session:
+            if not session.ok:
+                return session.exit_code
+            if (
+                session.context.name == "local"
+                and not self.confirm
+                and not _confirm_host_install()
+            ):
+                return 1
+            return bootstrap(
+                session.context, self.tools, current_platform(), session.tool_root
+            )
+
+
 def bootstrap(
-    ctx: ExecutionContext,
-    names: list[str],
-    platform: Platform,
-    install_root: str,
+    ctx: ExecutionContext, names: list[str], platform: Platform, install_root: str
 ) -> int:
     """Install `names` (an empty list means every scanning tool).
 
-    Adds the prerequisites each depends on. Tools install as independent groups: if
-    one fails it is reported and the rest proceed.
-
-    Args:
-        ctx: The started context to install into.
-        names: Tools to install; an empty list means every scanning tool.
-        platform: The platform to build install commands for.
-        install_root: Where the tools are installed.
-
-    Returns:
-        0 when every tool installed, 1 if any failed, or 2 for an unknown tool
-        name.
+    Adds the prerequisites each depends on. Tools install as independent groups: if one
+    fails it is reported and the rest proceed. Returns 0 when every tool installed, 1 if
+    any failed, or 2 for an unknown tool name.
     """
     if names:
         requested: list[Tool] = []
@@ -79,3 +97,25 @@ def bootstrap(
         return 1
     logger.info("installed %d tools into %s", len(plan), install_root)
     return 0
+
+
+def _confirm_host_install() -> bool:
+    """Confirm whether to install the scanning tools directly onto this host."""
+    sys.stderr.write(
+        "'bootstrap' installs the scanning tools directly onto this host.\n"
+        "reposcan normally runs the tools inside an ephemeral container, so this is\n"
+        "not the usual path and it changes this system.\n"
+    )
+    if not sys.stdin.isatty():
+        logger.error(
+            "cannot ask for confirmation on a non-interactive terminal; re-run with "
+            "--confirm to install the tools on the host"
+        )
+        return False
+    sys.stderr.write("Install the tools on this host anyway? [y/N] ")
+    sys.stderr.flush()
+    try:
+        reply = input()
+    except EOFError:
+        return False
+    return reply.strip().lower() in ("y", "yes")

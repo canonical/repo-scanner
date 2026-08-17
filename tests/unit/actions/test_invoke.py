@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the `reposcan invoke` command (repo_scanner.actions.invoke)."""
+"""Tests for the `reposcan invoke` action (repo_scanner.actions.invoke)."""
 
 import io
 import os

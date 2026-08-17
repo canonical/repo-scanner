@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the render command (repo_scanner.actions.render)."""
+"""Tests for the `reposcan render` action (repo_scanner.actions.render)."""
 
 import io
 import json

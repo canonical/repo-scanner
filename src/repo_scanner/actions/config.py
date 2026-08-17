@@ -4,24 +4,23 @@
 """The `reposcan config` group: read and write persistent configuration.
 
 The supported keys are exactly the parameters declared config-settable on the
-command base; each validates its own value the same way resolution does.
+action base; each validates its own value the same way resolution does.
 """
 
 import logging
 import sys
 
-from repo_scanner.cli.commands.base import Command
-from repo_scanner.cli.engine.resolve import coerce, load, save
-from repo_scanner.cli.spec import Group, params_of, positional
+from repo_scanner.actions.base import Action
+from repo_scanner.clikit import Group, coerce, load, params_of, positional, save
 from repo_scanner.table import render_table
 
 logger = logging.getLogger(__name__)
 
 # The config keys, keyed by name: every parameter marked config-settable.
-_KEYS = {p.name: p for p in params_of(Command) if p.config}
+_KEYS = {p.name: p for p in params_of(Action) if p.config}
 
 
-class ConfigSet(Command):
+class ConfigSet(Action):
     name = "set"
     help = "Set a config value."
 
@@ -46,7 +45,7 @@ class ConfigSet(Command):
         return 0
 
 
-class ConfigGet(Command):
+class ConfigGet(Action):
     name = "get"
     help = "Get a config value, or all values when no key is given."
 
@@ -67,7 +66,7 @@ class ConfigGet(Command):
         return 0
 
 
-class ConfigUnset(Command):
+class ConfigUnset(Action):
     name = "unset"
     help = "Remove a config value."
 
@@ -86,7 +85,7 @@ class ConfigUnset(Command):
         return 0
 
 
-class ConfigKeys(Command):
+class ConfigKeys(Action):
     name = "keys"
     help = "List all supported config keys."
 
@@ -96,7 +95,7 @@ class ConfigKeys(Command):
         return 0
 
 
-class ConfigOptions(Command):
+class ConfigOptions(Action):
     name = "options"
     help = "List the supported values for a config key."
 

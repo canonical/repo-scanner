@@ -19,7 +19,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
-from repo_scanner.cli.spec import Param
+from repo_scanner.clikit.spec import Param
 
 logger = logging.getLogger(__name__)
 
@@ -33,25 +33,7 @@ LOG_LEVELS = {
 }
 
 
-# --- value converters, used as a parameter's `convert` -----------------------
-
-
-def parse_uid(value: str) -> int:
-    """The non-negative integer uid `value` denotes, or raise ValueError."""
-    try:
-        uid = int(value)
-    except ValueError:
-        raise ValueError(f"expected an integer, got {value!r}") from None
-    if uid < 0:
-        raise ValueError(f"expected a non-negative integer, got {uid}")
-    return uid
-
-
-def parse_image(value: str) -> str:
-    """`value` if it is a usable image reference, or raise ValueError."""
-    if value.strip():
-        return value
-    raise ValueError("give an image reference or 'canonical'")
+# --- value coercion ----------------------------------------------------------
 
 
 def parse_bool(value: str) -> bool:

@@ -13,8 +13,8 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager, redirect_stdout
 
-from repo_scanner.cli import main
-from repo_scanner.cli.engine.resolve import load
+from repo_scanner.app import main
+from repo_scanner.clikit import load
 
 
 @contextmanager

@@ -1,11 +1,14 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""`reposcan exec` action: run a command in the selected execution context."""
+"""The `reposcan exec` action: run a command in the selected execution context."""
 
 import logging
 import sys
 
+from repo_scanner.actions.base import Action
+from repo_scanner.backends import start_session
+from repo_scanner.clikit import option, remainder
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
 
@@ -15,14 +18,32 @@ logger = logging.getLogger(__name__)
 TIMEOUT_EXIT_CODE = 124
 
 
+class ExecAction(Action):
+    name = "exec"
+    help = "Run a command within the selected execution context."
+
+    timeout: float | None = option(
+        convert=float,
+        help="Kill the command if it runs longer than this (default: no limit).",
+    )
+    argv: list[str] = remainder(
+        help="The command to run, after a double-hyphen (reposcan exec -- semgrep -h)."
+    )
+
+    def run(self) -> int:
+        with start_session(self.backend, tool_image=True, image=self.image) as session:
+            if not session.ok:
+                return session.exit_code
+            return execute(session.context, self.argv, timeout=self.timeout)
+
+
 def execute(
     context: ExecutionContext, command: list[str], *, timeout: float | None
 ) -> int:
     """Run `command` in the already-started `context` and return an exit code.
 
-    Returns:
-        The command's own exit code when it ran, 2 for a usage error, 124 on
-        timeout, or 1 when it could not be started.
+    Returns the command's own exit code when it ran, 2 for a usage error, 124 on
+    timeout, or 1 when it could not be started.
     """
     if not command:
         logger.error("no command given")

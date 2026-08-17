@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The CLI engine: parse argv, resolve parameters, configure logging, and dispatch."""
+"""The run loop: parse argv, resolve parameters, configure logging, and dispatch."""
 
 from __future__ import annotations
 
@@ -9,15 +9,15 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Any
 
-from repo_scanner.cli.engine.help import render as render_help
-from repo_scanner.cli.engine.parse import parse
-from repo_scanner.cli.engine.resolve import LOG_LEVELS, resolve
-from repo_scanner.cli.spec import Command, Param
+from repo_scanner.clikit.help import render as render_help
+from repo_scanner.clikit.parse import parse
+from repo_scanner.clikit.resolve import LOG_LEVELS, resolve
+from repo_scanner.clikit.spec import Action, Param
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from repo_scanner.cli.spec import Cli
+    from repo_scanner.clikit.spec import Cli
 
 
 class _LevelFormatter(logging.Formatter):
@@ -74,9 +74,6 @@ def _log_level(cli: Cli, scope: list[Param], raw: dict[str, Any]) -> str:
     return values[param.name]
 
 
-def _build(command: type[Command], values: dict[str, Any]) -> Command:
-    """Create the command instance and populate its resolved parameter attributes."""
-    instance = command.__new__(command)
-    for name, value in values.items():
-        setattr(instance, name, value)
-    return instance
+def _build(command: type[Action], values: dict[str, Any]) -> Action:
+    """Construct the command from its resolved parameter values."""
+    return command(**values)

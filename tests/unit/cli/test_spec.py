@@ -1,15 +1,25 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the parameter spec, in particular flag inference (repo_scanner.cli.spec).
+"""Tests for the parameter spec, in particular flag inference (repo_scanner.clikit).
 
 An option/flag's long spelling `--<name>` is inferred from its attribute name; the
 flags passed to the constructor are only extra spellings. Positionals and remainders
 get no flags.
 """
 
-from repo_scanner.cli.commands.base import Command as Globals
-from repo_scanner.cli.spec import flag, option, params_of, positional, remainder
+import pytest
+
+from repo_scanner.actions.base import Action as Globals
+from repo_scanner.clikit import (
+    Action,
+    check_requires,
+    flag,
+    option,
+    params_of,
+    positional,
+    remainder,
+)
 
 
 class _Sample:
@@ -41,3 +51,33 @@ def test_the_real_globals_infer_their_flags() -> None:
     assert flags["verbosity"] == ("-v", "--verbosity")
     assert flags["uid"] == ("--uid",)
     assert flags["image"] == ("--image",)  # config-and-CLI, not config-only
+
+
+class _Fields(Action):
+    name = "x"
+    help = "a command with a few parameters"
+    mode: str = option(choices=("a", "b"), default="a")
+    depth: int | None = option(convert=int, requires={"mode": "b"})
+    argv: list[str] = remainder()
+
+
+def test_a_command_is_a_constructable_value_object_with_defaults() -> None:
+    default = _Fields()
+    assert default.mode == "a" and default.depth is None and default.argv == []
+    given = _Fields(mode="b", depth=5)
+    assert given.mode == "b" and given.depth == 5
+    assert _Fields().argv is not _Fields().argv  # each gets its own remainder list
+
+
+def test_a_command_rejects_unknown_arguments() -> None:
+    with pytest.raises(TypeError):
+        _Fields(bogus=1)
+
+
+def test_check_requires_enforces_a_dependency_only_when_the_option_is_set() -> None:
+    params = params_of(_Fields)
+    assert check_requires(params, {"mode": "a", "depth": None}) is None  # depth unset
+    assert check_requires(params, {"mode": "b", "depth": 5}) is None  # satisfied
+    assert (
+        check_requires(params, {"mode": "a", "depth": 5}) == "--depth requires --mode=b"
+    )

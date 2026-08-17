@@ -1,15 +1,22 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan tools` action."""
+"""The `reposcan tools` action: list tools and their install status."""
 
-import logging
 import os
 import sys
 
+from repo_scanner.actions.base import Action
+from repo_scanner.paths import tools_root
 from repo_scanner.tools.registry import TOOLS
 
-logger = logging.getLogger(__name__)
+
+class ToolsAction(Action):
+    name = "tools"
+    help = "List the scanning tools and whether each is installed."
+
+    def run(self) -> int:
+        return list_tools(str(tools_root()))
 
 
 def list_tools(install_root: str) -> int:

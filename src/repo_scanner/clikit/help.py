@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
-from repo_scanner.cli.spec import Command, Group, Param
+from repo_scanner.clikit.spec import Action, Group, Param
 
 
-def render(node: type[Command | Group], scope: list[Param], prog: str) -> str:
+def render(node: type[Action | Group], scope: list[Param], prog: str) -> str:
     """Help text for `node`: usage, description, options, and subcommands."""
     options = [p for p in scope if not p.positional and not p.remainder]
     positionals = [p for p in scope if p.positional or p.remainder]

@@ -1,20 +1,23 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""CLI spec: parameters, commands, groups, and the application.
+"""Command declaration surface: parameters, commands, groups, and the application.
+
+This is the neutral vocabulary a command declares itself with, independent of the
+CLI engine (which imports it, not the other way round).
 
 A command is a class: it declares its parameters as typed class attributes and
 implements `run`. On dispatch the engine resolves every in-scope parameter
 (CLI > env > config > default) and populates the instance, so `run` reads them as
 plain typed attributes:
 
-    class CacheRemove(Command):
+    class CacheRemove(Action):
         name = "remove"
         help = "Remove one entry by its image reference."
         reference: str = positional(help="Image reference to forget.")
 
         def run(self) -> int:
-            return remove_cache_entry(self.reference)   # self.reference: str
+            ...                                         # self.reference: str
 
 Flow-down: parameters declared on the command base (the globals) are in scope for
 every command and may appear anywhere in the arguments, before or after any
@@ -22,13 +25,13 @@ subcommand, at any depth -- so `self.backend` is available in every `run`, and
 `reposcan image cache --backend docker remove r1` is accepted. A global is simply a
 parameter declared on the base.
 
-All parsing, resolution, and help rendering live in `repo_scanner.cli.engine`; this
+All parsing, resolution, and help rendering live in `repo_scanner.clikit`; this
 module is only the declaration surface plus the `Cli.run` entry point.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any, ClassVar, Generic, TypeVar
 
 T = TypeVar("T")
@@ -61,6 +64,7 @@ class Param(Generic[T]):
         is_flag: bool = False,
         env: bool = True,
         config: bool = False,
+        requires: dict[str, str] | None = None,
     ) -> None:
         self.name = ""  # set by __set_name__ from the class-attribute name
         self.flags = flags
@@ -75,6 +79,9 @@ class Param(Generic[T]):
         self.is_flag = is_flag
         self.env = env
         self.config = config
+        # A cross-option dependency: other-parameter -> the value it must have for
+        # this one to be valid, enforced by `check_requires` only when this is set.
+        self.requires = requires
 
     def __set_name__(self, owner: type, name: str) -> None:
         """Capture attribute name.
@@ -123,13 +130,15 @@ def option(
     help: str = "",
     env: bool = True,
     config: bool = False,
+    requires: dict[str, str] | None = None,
 ) -> Any:
     """A value option that consumes a following argument (`--backend docker`).
 
     The long flag `--<name>` is inferred from the attribute name; `extra_flags` are
     additional spellings (a short form, or aliases), given as a single flag or an
     iterable: `verbosity: str = option("-v", ...)` accepts both `-v` and
-    `--verbosity`.
+    `--verbosity`. `requires` maps another parameter to the value it must have for
+    this option to be valid (checked by `check_requires`).
     """
     return Param(
         flags=_as_flags(extra_flags),
@@ -139,6 +148,7 @@ def option(
         help=help,
         env=env,
         config=config,
+        requires=requires,
     )
 
 
@@ -148,12 +158,14 @@ def flag(
     help: str = "",
     env: bool = True,
     config: bool = False,
+    requires: dict[str, str] | None = None,
 ) -> Any:
     """A boolean switch that takes no value, defaulting False.
 
     The long flag `--<name>` is inferred from the attribute name; `extra_flags` are
     additional spellings (a short form, or aliases), given as a single flag or an
-    iterable.
+    iterable. `requires` maps another parameter to the value it must have for this
+    flag to be valid (checked by `check_requires`).
     """
     return Param(
         flags=_as_flags(extra_flags),
@@ -162,6 +174,7 @@ def flag(
         help=help,
         env=env,
         config=config,
+        requires=requires,
     )
 
 
@@ -171,11 +184,13 @@ def positional(
     convert: Callable[[str], T] | None = None,
     many: bool = False,
     required: bool = True,
+    requires: dict[str, str] | None = None,
 ) -> Any:
     """A positional argument (command-line only).
 
     `many=True` collects zero or more values into a list; `required=False` makes a
-    single positional optional (falling back to `default`).
+    single positional optional (falling back to `default`). `requires` maps another
+    parameter to the value it must have for this one to be valid.
     """
     return Param(
         positional=True,
@@ -185,6 +200,7 @@ def positional(
         convert=convert,
         help=help,
         env=False,
+        requires=requires,
     )
 
 
@@ -210,18 +226,58 @@ def params_of(cls: type) -> list[Param]:
     return list(found.values())
 
 
-class Command:
+def check_requires(params: Iterable[Param], values: Mapping[str, Any]) -> str | None:
+    """The first unmet cross-option requirement in `params`, or None.
+
+    A parameter's `requires` maps another parameter to the value it must have. It is
+    enforced only when the parameter is actually set (its resolved value differs from
+    its default), so an unset option imposes no requirement.
+    """
+    for param in params:
+        if not param.requires:
+            continue
+        if values.get(param.name) == param.default:
+            continue  # not set, so its requirements do not apply
+        flag = "--" + param.name.replace("_", "-")
+        for required_name, required_value in param.requires.items():
+            if values.get(required_name) != required_value:
+                needs = "--" + required_name.replace("_", "-")
+                return f"{flag} requires {needs}={required_value}"
+    return None
+
+
+class Action:
     """A leaf command: typed parameter attributes plus a `run` method.
 
     Subclass it, set `name`/`help`, declare parameters as typed class attributes
-    (`option`/`flag`/`positional`/`remainder`), and implement `run`. The engine
-    resolves the in-scope parameters and populates the instance before calling
-    `run`, so `run` reads `self.<name>` as an ordinary typed attribute -- both its
-    own parameters and the flow-down globals declared on the base.
+    (`option`/`flag`/`positional`/`remainder`), and implement `run`, which reads
+    `self.<name>` as an ordinary typed attribute -- both its own parameters and the
+    flow-down globals declared on the base.
+
+    An action is a value-object: construct it directly with parameter values
+    (`SecretsScan(mode="filesystem")`, the rest falling back to their defaults),
+    and the engine constructs it the same way, from the resolved values. So `run`
+    (and any method it calls) can be exercised without the CLI.
     """
 
     name: ClassVar[str]
     help: ClassVar[str]
+
+    def __init__(self, **values: Any) -> None:
+        params = params_of(type(self))
+        unknown = set(values) - {param.name for param in params}
+        if unknown:
+            raise TypeError(f"unexpected arguments: {', '.join(sorted(unknown))}")
+        for param in params:
+            if param.name in values:
+                value = values[param.name]
+            elif param.remainder or param.many:
+                value = list(
+                    param.default or []
+                )  # a fresh list, never the shared default
+            else:
+                value = param.default
+            setattr(self, param.name, value)
 
     def run(self) -> int:
         """Do the work and return a process exit code."""
@@ -233,7 +289,7 @@ class Group:
 
     name: ClassVar[str]
     help: ClassVar[str]
-    subcommands: ClassVar[tuple[type[Command | Group], ...]] = ()
+    subcommands: ClassVar[tuple[type[Action | Group], ...]] = ()
 
 
 class Cli:
@@ -248,7 +304,7 @@ class Cli:
         self,
         name: str,
         root: type[Group],
-        base: type[Command],
+        base: type[Action],
         log_level: str = "verbosity",
     ) -> None:
         self.name = name
@@ -264,6 +320,6 @@ class Cli:
         required); otherwise whatever the selected command's `run` returns. A help
         request (`-h`/`--help`) prints help and returns 0.
         """
-        from repo_scanner.cli.engine import dispatch
+        from repo_scanner.clikit.dispatch import dispatch
 
         return dispatch(self, argv)
