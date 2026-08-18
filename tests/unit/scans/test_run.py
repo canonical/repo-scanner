@@ -1,24 +1,16 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the scan model and run_scan driver (repo_scanner.scans.model)."""
+"""Tests for the scan driver (repo_scanner.scans.run.run_scan)."""
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import ClassVar
 
 from repo_scanner.execution.context import SCAN_UID
 from repo_scanner.execution.process import ExecResult, Failure
 from repo_scanner.scans import sarif
-from repo_scanner.scans.model import (
-    NO_PARAMETERS,
-    Artifact,
-    ArtifactKind,
-    Parameter,
-    ToolInvocation,
-    ToolResult,
-    run_scan,
-)
+from repo_scanner.scans.base import ScanAction
+from repo_scanner.scans.model import Artifact, ArtifactKind, ToolInvocation, ToolResult
+from repo_scanner.scans.run import run_scan
 
 
 class _FakeContext:
@@ -58,13 +50,9 @@ class _FakeContext:
         return None
 
 
-@dataclass(frozen=True)
-class _FakeScan:
+class _FakeScan(ScanAction):
     # Invokes one real registered tool so installed-path lookup resolves.
-    name: ClassVar[str] = "faux"
-    summary: ClassVar[str] = "A fake scan for testing the driver."
-    parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
-    resolves_dependencies: ClassVar[bool] = False
+    name = "faux"
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         return [ToolInvocation("trufflehog", ["--version"])]
@@ -73,14 +61,12 @@ class _FakeScan:
         return sarif.SarifDocument({"runs": [{"results": []}]})
 
 
-class _Scan:
+class _Scan(ScanAction):
     # A scan running the given invocations; records the results it consolidates.
-    name: ClassVar[str] = "faux"
-    summary: ClassVar[str] = "A configurable fake scan."
-    parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
-    resolves_dependencies: ClassVar[bool] = False
+    name = "faux"
 
     def __init__(self, invocations: list[ToolInvocation]) -> None:
+        super().__init__()
         self._invocations = invocations
         self.seen: list[ToolResult] = []
 

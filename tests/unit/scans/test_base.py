@@ -1,10 +1,11 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the `reposcan scan` action (repo_scanner.actions.scan).
+"""Tests for the scan run/emit flow (repo_scanner.scans.base.ScanAction.run).
 
-run_scan is patched to a scripted artifact/Failure, so this covers the action's own
-job: writing the report and choosing the exit code (0 clean / 3 findings / 1 error).
+`run_scan` and `start_session` are patched, so this covers the action's own job:
+resolving the report, writing it, and choosing the exit code (0 clean / 3 findings /
+1 error / 2 for a bad path or an existing output file).
 """
 
 import io
@@ -15,7 +16,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager, redirect_stdout
 from typing import cast
 
-import repo_scanner.actions.scan as scan_cmd
+import repo_scanner.scans.base as base
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import cyclonedx, sarif
@@ -34,29 +35,45 @@ def _sbom_artifact(components: int) -> Artifact:
     return cyclonedx.CycloneDxDocument({"bomFormat": "CycloneDX", "components": listed})
 
 
+class _FakeSession:
+    """A started session over a placeholder context (run_scan is patched away)."""
+
+    ok = True
+    exit_code = 0
+    context = cast(ExecutionContext, None)
+    target = "/scan/x"
+    tool_root = "/opt/reposcan"
+    resolved_parent = ""
+
+    def __enter__(self) -> "_FakeSession":
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+
 @contextmanager
-def _patched_run_scan(outcome: Artifact | Failure) -> Iterator[None]:
-    saved = scan_cmd.run_scan
-    scan_cmd.run_scan = lambda *args, **kwargs: outcome
+def _patched(outcome: Artifact | Failure) -> Iterator[None]:
+    """Patch base.run_scan to a scripted outcome and base.start_session to a fake."""
+    saved_run, saved_session = base.run_scan, base.start_session
+    base.run_scan = lambda *args, **kwargs: outcome
+    base.start_session = lambda *args, **kwargs: _FakeSession()
     try:
         yield
     finally:
-        scan_cmd.run_scan = saved
+        base.run_scan, base.start_session = saved_run, saved_session
 
 
 def _run(
     outcome: Artifact | Failure,
     *,
-    output: str | None = None,
     fmt: Format | None = None,
 ) -> tuple[int, str]:
     out = io.StringIO()
-    # run_scan is patched, so the context is never touched; cast a placeholder.
-    ctx = cast(ExecutionContext, None)
-    with _patched_run_scan(outcome), redirect_stdout(out):
-        code = scan_cmd.scan(
-            SecretsScan(), ctx, "/scan/x", "/opt/reposcan", output_file=output, fmt=fmt
-        )
+    with tempfile.TemporaryDirectory() as repo:
+        action = SecretsScan(path=repo, format=fmt.value if fmt else None)
+        with _patched(outcome), redirect_stdout(out):
+            code = action.run()
     return code, out.getvalue()
 
 
@@ -87,23 +104,29 @@ def test_a_scan_failure_returns_one() -> None:
 
 
 def test_output_file_receives_the_report_and_stdout_stays_clean() -> None:
-    with tempfile.TemporaryDirectory() as directory:
-        path = os.path.join(directory, "report.sarif")
-        code, out = _run(_sarif_artifact(1), output=path)
+    with tempfile.TemporaryDirectory() as repo:
+        path = os.path.join(repo, "report.sarif")
+        action = SecretsScan(path=repo, output=path)
+        out = io.StringIO()
+        with _patched(_sarif_artifact(1)), redirect_stdout(out):
+            code = action.run()
         assert code == 3
-        assert out == ""  # nothing on stdout when writing to a file
+        assert out.getvalue() == ""  # nothing on stdout when writing to a file
         with open(path, encoding="ascii") as handle:
             written = json.loads(handle.read())
         assert written["version"] == "2.1.0"
 
 
 def test_refuses_to_overwrite_an_existing_output_file() -> None:
-    with tempfile.TemporaryDirectory() as directory:
-        path = os.path.join(directory, "report.sarif")
+    with tempfile.TemporaryDirectory() as repo:
+        path = os.path.join(repo, "report.sarif")
         with open(path, "w", encoding="ascii") as handle:
             handle.write("existing report")
-        code, out = _run(_sarif_artifact(1), output=path)
+        action = SecretsScan(path=repo, output=path)
+        out = io.StringIO()
+        with _patched(_sarif_artifact(1)), redirect_stdout(out):
+            code = action.run()
         assert code == 2  # refused before running the scan
-        assert out == ""
+        assert out.getvalue() == ""
         with open(path, encoding="ascii") as handle:
             assert handle.read() == "existing report"  # untouched

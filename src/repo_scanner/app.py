@@ -10,9 +10,9 @@ from repo_scanner.actions.exec import ExecAction
 from repo_scanner.actions.image import ImageGroup
 from repo_scanner.actions.invoke import InvokeAction
 from repo_scanner.actions.render import RenderAction
-from repo_scanner.actions.scan import ScanGroup
 from repo_scanner.actions.tools import ToolsAction
 from repo_scanner.clikit import Cli, Group
+from repo_scanner.scans.registry import ScanGroup
 
 
 class Reposcan(Group):

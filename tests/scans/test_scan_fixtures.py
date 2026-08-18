@@ -27,8 +27,10 @@ import pytest
 import repo_scanner.scans as scans_pkg
 from repo_scanner.backends import DockerBackend, start_session
 from repo_scanner.execution.process import Failure
-from repo_scanner.scans.model import Artifact, Scan, run_scan
-from repo_scanner.scans.registry import SCANS
+from repo_scanner.scans.base import ScanAction
+from repo_scanner.scans.model import Artifact
+from repo_scanner.scans.registry import ScanGroup
+from repo_scanner.scans.run import run_scan
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,7 @@ _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 class _FixtureModule(Protocol):
     """The contract every fixture file under fixtures/ provides."""
 
-    SCAN: Scan
+    SCAN: ScanAction
     plant: Callable[[Path], None]
     verify: Callable[[Artifact], None]
 
@@ -65,10 +67,10 @@ def _discover_scan_names() -> set[str]:
     for info in pkgutil.iter_modules(scans_pkg.__path__):
         module = importlib.import_module(f"{scans_pkg.__name__}.{info.name}")
         for obj in vars(module).values():
-            # A scan class defined in this module (not imported, not an instance);
-            # isinstance against the runtime-checkable Scan matches the class object.
+            # A concrete scan defined in this module (not imported, not a base): a
+            # ScanAction subclass that sets its own `name` (the bases do not).
             defined_here = isinstance(obj, type) and obj.__module__ == module.__name__
-            if defined_here and isinstance(obj, Scan):
+            if defined_here and issubclass(obj, ScanAction) and hasattr(obj, "name"):
                 names.add(obj.name)
     return names
 
@@ -81,7 +83,8 @@ def test_every_scan_has_a_fixture() -> None:
     assert not missing, f"scan types with no fixture: {sorted(missing)}"
     orphan = fixtures - scans
     assert not orphan, f"fixtures for unknown scans: {sorted(orphan)}"
-    assert set(SCANS) == scans, "SCANS registry is out of sync with the scan modules"
+    registered = {scan.name for scan in ScanGroup.subcommands}
+    assert registered == scans, "the scan group is out of sync with the scan modules"
 
 
 def _run_fixture(name: str, fixture: _FixtureModule) -> None:

@@ -6,16 +6,15 @@
 import logging
 import sys
 import tempfile
-from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any
 
 from repo_scanner.actions.base import Action
-from repo_scanner.actions.scan import _scan_command
 from repo_scanner.app import Reposcan, main
-from repo_scanner.clikit import LOG_LEVELS, Cli, Group, parse, resolve
+from repo_scanner.clikit import LOG_LEVELS, Cli, Group, option, parse, resolve
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import sarif
-from repo_scanner.scans.model import Artifact, Parameter, ToolInvocation, ToolResult
+from repo_scanner.scans.base import ScanAction
+from repo_scanner.scans.model import Artifact, ToolInvocation, ToolResult
 
 
 def _resolved(argv: list[str], env: dict[str, str] | None = None) -> dict[str, Any]:
@@ -78,19 +77,16 @@ def test_cli_beats_env_beats_default_for_a_global() -> None:
 # --- scan options resolve like any other --------------------------------------
 
 
-@dataclass(frozen=True)
-class _FakeScan:
-    """A test-only scan whose declared parameters exercise the scan factory."""
+class _FauxScan(ScanAction):
+    """A test-only scan whose options exercise resolution and the requires rule."""
 
-    name: ClassVar[str] = "faux"
-    summary: ClassVar[str] = "A fake scan for testing the CLI."
-    parameters: ClassVar[tuple[Parameter, ...]] = (
-        Parameter("flavor", "the flavor", choices=("plain", "rich"), default="plain"),
-        Parameter("level", "detail level", type=int, requires={"flavor": "rich"}),
+    name = "faux"
+    help = "A fake scan for testing the CLI."
+
+    flavor: str = option(choices=("plain", "rich"), default="plain", help="the flavor")
+    level: int | None = option(
+        convert=int, requires={"flavor": "rich"}, help="detail level"
     )
-    resolves_dependencies: ClassVar[bool] = False
-    flavor: str = "plain"
-    level: int | None = None
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         return []
@@ -100,9 +96,8 @@ class _FakeScan:
 
 
 def _fake_scan_tree() -> type[Group]:
-    command = _scan_command(_FakeScan)
     return type(
-        "Root", (Group,), {"name": "reposcan", "help": "", "subcommands": (command,)}
+        "Root", (Group,), {"name": "reposcan", "help": "", "subcommands": (_FauxScan,)}
     )
 
 

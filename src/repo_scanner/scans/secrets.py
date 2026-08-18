@@ -9,23 +9,19 @@ target -- the git history by default, or the working-tree files in filesystem mo
 """
 
 import json
-from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any
 
+from repo_scanner.clikit import option
 from repo_scanner.scans import sarif
-from repo_scanner.scans.model import (
-    Parameter,
-    ToolInvocation,
-    ToolResult,
-)
+from repo_scanner.scans.base import ScanAction
+from repo_scanner.scans.model import ToolInvocation, ToolResult
 from repo_scanner.tools.registry import TRUFFLEHOG
 
 # trufflehog flags common to both modes: machine-readable output, no self-update.
 _COMMON_ARGS = ["--json", "--no-update"]
 
 
-@dataclass(frozen=True)
-class SecretsScan:
+class SecretsScan(ScanAction):
     """Scan a repository for secrets with trufflehog.
 
     `mode` selects what trufflehog reads: "history" scans the full git history
@@ -34,25 +30,19 @@ class SecretsScan:
     it applies only in history mode.
     """
 
-    name: ClassVar[str] = "secrets"
-    summary: ClassVar[str] = "Scan for leaked secrets with trufflehog."
-    parameters: ClassVar[tuple[Parameter, ...]] = (
-        Parameter(
-            "mode",
-            "Scan git history (default) or just the working-tree files.",
-            choices=("history", "filesystem"),
-            default="history",
-        ),
-        Parameter(
-            "depth",
-            "In history mode, scan only the most recent N commits (default: all).",
-            type=int,
-            requires={"mode": "history"},
-        ),
+    name = "secrets"
+    help = "Scan for leaked secrets with trufflehog."
+
+    mode: str = option(
+        choices=("history", "filesystem"),
+        default="history",
+        help="Scan git history (default) or just the working-tree files.",
     )
-    resolves_dependencies: ClassVar[bool] = False
-    mode: str = "history"
-    depth: int | None = None
+    depth: int | None = option(
+        convert=int,
+        requires={"mode": "history"},
+        help="In history mode, scan only the most recent N commits (default: all).",
+    )
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The single trufflehog invocation for `target` in the selected mode.

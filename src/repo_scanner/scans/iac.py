@@ -10,28 +10,19 @@ real error rather than findings.
 """
 
 import json
-from dataclasses import dataclass
-from typing import ClassVar
 
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import sarif
-from repo_scanner.scans.model import (
-    NO_PARAMETERS,
-    Parameter,
-    ToolInvocation,
-    ToolResult,
-)
+from repo_scanner.scans.base import ScanAction
+from repo_scanner.scans.model import ToolInvocation, ToolResult
 from repo_scanner.tools.registry import TOOLS
 
 
-@dataclass(frozen=True)
-class IacScan:
+class IacScan(ScanAction):
     """Scan a repository's infrastructure-as-code for misconfigurations."""
 
-    name: ClassVar[str] = "iac"
-    summary: ClassVar[str] = "Infrastructure-as-code checks with checkov."
-    parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
-    resolves_dependencies: ClassVar[bool] = False
+    name = "iac"
+    help = "Infrastructure-as-code checks with checkov."
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The single checkov invocation for `target`.

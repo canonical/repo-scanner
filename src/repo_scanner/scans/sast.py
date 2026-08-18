@@ -7,27 +7,17 @@ semgrep emits SARIF directly (`--sarif`), so this scan runs it over the target w
 its default ruleset and passes the SARIF through as the artifact.
 """
 
-from dataclasses import dataclass
-from typing import ClassVar
-
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import sarif
-from repo_scanner.scans.model import (
-    NO_PARAMETERS,
-    Parameter,
-    ToolInvocation,
-    ToolResult,
-)
+from repo_scanner.scans.base import ScanAction
+from repo_scanner.scans.model import ToolInvocation, ToolResult
 
 
-@dataclass(frozen=True)
-class SastScan:
+class SastScan(ScanAction):
     """Scan a repository's source for security issues with semgrep."""
 
-    name: ClassVar[str] = "sast"
-    summary: ClassVar[str] = "Static analysis of source with semgrep."
-    parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
-    resolves_dependencies: ClassVar[bool] = False
+    name = "sast"
+    help = "Static analysis of source with semgrep."
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The single semgrep invocation for `target`.

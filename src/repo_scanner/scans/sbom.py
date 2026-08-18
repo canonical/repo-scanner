@@ -13,17 +13,11 @@ stays optional: if it fails, trivy + syft still produce the SBOM.
 """
 
 import logging
-from dataclasses import dataclass
-from typing import ClassVar
 
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import cyclonedx
-from repo_scanner.scans.model import (
-    INCLUDE_DEV_DEPENDENCIES,
-    Parameter,
-    ToolInvocation,
-    ToolResult,
-)
+from repo_scanner.scans.base import DependencyResolvingScan
+from repo_scanner.scans.model import ToolInvocation, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -31,15 +25,11 @@ logger = logging.getLogger(__name__)
 _CDXGEN_OUTPUT = "/tmp/cdxgen-sbom.json"
 
 
-@dataclass(frozen=True)
-class SbomScan:
+class SbomScan(DependencyResolvingScan):
     """Build a software bill of materials for a repository's components."""
 
-    name: ClassVar[str] = "sbom"
-    summary: ClassVar[str] = "Software bill of materials (trivy, syft, cdxgen)."
-    parameters: ClassVar[tuple[Parameter, ...]] = (INCLUDE_DEV_DEPENDENCIES,)
-    resolves_dependencies: ClassVar[bool] = True  # resolve transitive deps first
-    include_dev_dependencies: bool = False
+    name = "sbom"
+    help = "Software bill of materials (trivy, syft, cdxgen)."
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The trivy, syft, and cdxgen invocations for `target`.
@@ -53,7 +43,9 @@ class SbomScan:
             mode. cdxgen is optional.
         """
         return [
-            ToolInvocation("trivy", ["fs", "--format", "cyclonedx", target]),
+            ToolInvocation(
+                "trivy", ["fs", "--skip-version-check", "--format", "cyclonedx", target]
+            ),
             ToolInvocation(
                 tool="syft",
                 args=[

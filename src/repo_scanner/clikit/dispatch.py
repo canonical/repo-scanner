@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from repo_scanner.clikit.help import render as render_help
 from repo_scanner.clikit.parse import parse
 from repo_scanner.clikit.resolve import LOG_LEVELS, resolve
-from repo_scanner.clikit.spec import Action, Param
+from repo_scanner.clikit.spec import Action, Param, check_requires
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -59,6 +59,10 @@ def dispatch(cli: Cli, argv: Sequence[str] | None = None) -> int:
     values, error = resolve(parsed.scope, parsed.raw)
     if error is not None:  # a bad value is a usage error, like a parse error
         print(f"{parsed.prog}: {error}", file=sys.stderr)
+        return 2
+    requirement = check_requires(parsed.scope, values)
+    if requirement is not None:  # an unmet cross-option dependency is a usage error
+        print(f"{parsed.prog}: {requirement}", file=sys.stderr)
         return 2
     return _build(parsed.command, values).run()
 

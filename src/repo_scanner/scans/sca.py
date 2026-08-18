@@ -14,29 +14,20 @@ the message shapes differ.
 """
 
 import json
-from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any
 
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import sarif
-from repo_scanner.scans.model import (
-    INCLUDE_DEV_DEPENDENCIES,
-    Parameter,
-    ToolInvocation,
-    ToolResult,
-)
+from repo_scanner.scans.base import DependencyResolvingScan
+from repo_scanner.scans.model import ToolInvocation, ToolResult
 from repo_scanner.tools.registry import TOOLS
 
 
-@dataclass(frozen=True)
-class ScaScan:
+class ScaScan(DependencyResolvingScan):
     """Scan a repository's dependencies for known vulnerabilities."""
 
-    name: ClassVar[str] = "sca"
-    summary: ClassVar[str] = "Dependency vulnerabilities (trivy, grype, govulncheck)."
-    parameters: ClassVar[tuple[Parameter, ...]] = (INCLUDE_DEV_DEPENDENCIES,)
-    resolves_dependencies: ClassVar[bool] = True  # resolve transitive deps first
-    include_dev_dependencies: bool = False
+    name = "sca"
+    help = "Dependency vulnerabilities (trivy, grype, govulncheck)."
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The trivy, grype, and govulncheck invocations for `target`.
@@ -50,7 +41,16 @@ class ScaScan:
         """
         return [
             ToolInvocation(
-                "trivy", ["fs", "--format", "sarif", "--scanners", "vuln", target]
+                "trivy",
+                [
+                    "fs",
+                    "--format",
+                    "sarif",
+                    "--scanners",
+                    "vuln",
+                    "--skip-version-check",
+                    target,
+                ],
             ),
             ToolInvocation(
                 "grype",

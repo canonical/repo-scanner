@@ -7,27 +7,17 @@ Both tools emit SARIF; their results are merged into one document, annotated wit
 which scanner reported each finding (see scans/sarif.py `merge`).
 """
 
-from dataclasses import dataclass
-from typing import ClassVar
-
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import sarif
-from repo_scanner.scans.model import (
-    NO_PARAMETERS,
-    Parameter,
-    ToolInvocation,
-    ToolResult,
-)
+from repo_scanner.scans.base import ScanAction
+from repo_scanner.scans.model import ToolInvocation, ToolResult
 
 
-@dataclass(frozen=True)
-class WorkflowScan:
+class WorkflowScan(ScanAction):
     """Audit a repository's CI/CD workflow definitions with zizmor and poutine."""
 
-    name: ClassVar[str] = "workflow"
-    summary: ClassVar[str] = "Audit CI/CD workflows with zizmor and poutine."
-    parameters: ClassVar[tuple[Parameter, ...]] = NO_PARAMETERS
-    resolves_dependencies: ClassVar[bool] = False
+    name = "workflow"
+    help = "Audit CI/CD workflows with zizmor and poutine."
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The zizmor and poutine invocations for `target`.
