@@ -39,6 +39,16 @@ def test_govulncheck_stream_becomes_sarif() -> None:
     assert finding["properties"]["scanners"] == ["govulncheck"]
 
 
+def test_include_dev_dependencies_adds_the_trivy_flag_only() -> None:
+    # Only trivy honors it; grype and govulncheck have no dev/production toggle.
+    with_dev = {
+        i.tool: i for i in ScaScan(include_dev_dependencies=True).invocations("/x")
+    }
+    assert "--include-dev-deps" in with_dev["trivy"].args
+    default = {i.tool: i for i in ScaScan().invocations("/x")}
+    assert "--include-dev-deps" not in default["trivy"].args
+
+
 def test_consolidate_merges_sarif_tools_with_converted_govulncheck() -> None:
     location = {"artifactLocation": {"uri": "pkg"}, "region": {"startLine": 1}}
     trivy = json.dumps(

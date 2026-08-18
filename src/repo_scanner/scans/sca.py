@@ -39,19 +39,19 @@ class ScaScan(DependencyResolvingScan):
             One invocation per tool. govulncheck runs inside the module and is
             optional (skipped on a non-Go repo); it exits 3 when it finds vulns.
         """
+        trivy_args = [
+            "fs",
+            "--format",
+            "sarif",
+            "--scanners",
+            "vuln",
+            "--skip-version-check",
+        ]
+        if self.include_dev_dependencies:
+            trivy_args.append("--include-dev-deps")
+        trivy_args.append(target)
         return [
-            ToolInvocation(
-                "trivy",
-                [
-                    "fs",
-                    "--format",
-                    "sarif",
-                    "--scanners",
-                    "vuln",
-                    "--skip-version-check",
-                    target,
-                ],
-            ),
+            ToolInvocation("trivy", trivy_args),
             ToolInvocation(
                 "grype",
                 [f"dir:{target}", "-o", "sarif"],

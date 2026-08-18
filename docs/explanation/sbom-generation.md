@@ -63,7 +63,8 @@ behavior of pip. We did it for maven, but it was really challenging."
 
 reposcan runs all three tools with the target repository as the working
 directory, as an unprivileged user, and with git-ignored directories excluded
-(see `path-exclusion.md`).
+(see `path-exclusion.md`). Each tool also takes dev-dependency flags that vary
+with `--include-dev-dependencies` (see "Development dependencies").
 
 - syft: `syft dir:<target> -o cyclonedx-json`, with env
   `SYFT_CHECK_FOR_APP_UPDATE=false`,
@@ -73,6 +74,33 @@ directory, as an unprivileged user, and with git-ignored directories excluded
 - cdxgen:
   `cdxgen --no-install-deps --lifecycle pre-build --no-banner -o <file> <target>`,
   with env `CDXGEN_SECURE_MODE=true`.
+
+## Development dependencies
+
+By default reposcan reports only production dependencies; the
+`--include-dev-dependencies` flag (on the `sbom` and `sca` scans) also reports
+development dependencies. The tools disagree on both their defaults and on how
+the setting is exposed:
+
+- trivy excludes dev dependencies by default and includes them with the
+  `--include-dev-deps` CLI flag (npm, yarn, pnpm, bun, poetry, uv).
+  ([coverage](https://trivy.dev/docs/latest/coverage/language/nodejs/))
+- syft excludes JavaScript dev dependencies by default and includes them via the
+  `SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES=true` environment variable. There is
+  no CLI flag, and the setting is JavaScript-only.
+  ([config](https://oss.anchore.com/docs/reference/syft/configuration/))
+- cdxgen includes dev dependencies by default, so reposcan adds
+  `--required-only` to keep production scope only, and drops it when dev
+  dependencies are requested.
+  ([ENV.md](https://github.com/CycloneDX/cdxgen/blob/v12.7.0/docs/ENV.md))
+
+For the SCA scan (trivy, grype, govulncheck) only trivy is configurable: grype
+has no dev/production filter
+([grype#1643](https://github.com/anchore/grype/issues/1643)), and govulncheck
+scans Go, which has no development/production split.
+
+A dev dependency that only one tool reports still appears in the merged,
+de-duplicated output, annotated with the tool that found it.
 
 ## Dependency resolution
 

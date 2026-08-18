@@ -42,10 +42,30 @@ class SbomScan(DependencyResolvingScan):
             writes to a file (read back by run_scan) and runs in a no-build, secure
             mode. cdxgen is optional.
         """
+        # by default, cdxgen includes development dependencies while trivy and syft
+        # exclude them.
+        trivy_args = ["fs", "--skip-version-check", "--format", "cyclonedx"]
+        syft_env = {
+            "SYFT_CHECK_FOR_APP_UPDATE": "false",
+            # Capture requirements.txt entries that carry a version constraint but no
+            # exact pin (e.g. "flask>=2.0"); syft drops them otherwise. Note: no SBOM
+            # tool reads pyproject.toml deps in our no-install mode -- see
+            # docs/explanation/sbom-generation.md.
+            "SYFT_PYTHON_GUESS_UNPINNED_REQUIREMENTS": "true",
+        }
+        # --no-install-deps (and the pre-build lifecycle) keep cdxgen to static
+        # manifest/lockfile parsing, so it never runs the repo's setup.py/build backend.
+        cdxgen_args = ["--no-install-deps", "--lifecycle", "pre-build", "--no-banner"]
+        if self.include_dev_dependencies:
+            trivy_args.append("--include-dev-deps")
+            syft_env["SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES"] = "true"
+        else:
+            cdxgen_args.append("--required-only")
+        trivy_args.append(target)
+        cdxgen_args += ["-o", _CDXGEN_OUTPUT, target]
+
         return [
-            ToolInvocation(
-                "trivy", ["fs", "--skip-version-check", "--format", "cyclonedx", target]
-            ),
+            ToolInvocation("trivy", trivy_args),
             ToolInvocation(
                 tool="syft",
                 args=[
@@ -60,29 +80,11 @@ class SbomScan(DependencyResolvingScan):
                     "--override-default-catalogers",
                     "all",
                 ],
-                env={
-                    "SYFT_CHECK_FOR_APP_UPDATE": "false",
-                    # Capture requirements.txt entries that carry a version constraint
-                    # but no exact pin (e.g. "flask>=2.0"); syft drops them otherwise.
-                    # Note: no SBOM tool reads pyproject.toml deps in our no-install
-                    # mode -- see docs/explanation/sbom-generation.md.
-                    "SYFT_PYTHON_GUESS_UNPINNED_REQUIREMENTS": "true",
-                },
+                env=syft_env,
             ),
             ToolInvocation(
                 "cdxgen",
-                [
-                    # Never build or install from the untrusted repo: --no-install-deps
-                    # (and pre-build lifecycle) keep cdxgen to static manifest/lockfile
-                    # parsing, so it does not execute the repo's setup.py/build backend.
-                    "--no-install-deps",
-                    "--lifecycle",
-                    "pre-build",
-                    "--no-banner",
-                    "-o",
-                    _CDXGEN_OUTPUT,
-                    target,
-                ],
+                cdxgen_args,
                 # CDXGEN_SECURE_MODE is defense-in-depth: if any code path still tried
                 # to install, cdxgen would inject python -S and pip --only-binary.
                 env={"CDXGEN_SECURE_MODE": "true"},

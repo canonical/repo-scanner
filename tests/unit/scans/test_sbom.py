@@ -39,6 +39,25 @@ def test_consolidate_merges_dedups_by_purl_and_annotates_scanners() -> None:
     assert scanners == ["trivy", "syft"]
 
 
+def test_include_dev_dependencies_steers_each_tool() -> None:
+    by_tool = {
+        i.tool: i for i in SbomScan(include_dev_dependencies=True).invocations("/x")
+    }
+    assert "--include-dev-deps" in by_tool["trivy"].args  # trivy: CLI flag
+    syft_env = by_tool["syft"].env or {}
+    assert (
+        syft_env.get("SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES") == "true"
+    )  # syft: env
+    assert "--required-only" not in by_tool["cdxgen"].args  # cdxgen: keep its default
+
+
+def test_dev_dependencies_are_excluded_by_default() -> None:
+    by_tool = {i.tool: i for i in SbomScan().invocations("/x")}
+    assert "--include-dev-deps" not in by_tool["trivy"].args
+    assert "SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES" not in (by_tool["syft"].env or {})
+    assert "--required-only" in by_tool["cdxgen"].args  # cdxgen otherwise includes dev
+
+
 def test_consolidate_fails_on_non_cyclonedx_output() -> None:
     result = SbomScan().consolidate(
         [ToolResult("syft", ExecResult(0, "not cyclonedx", ""))]

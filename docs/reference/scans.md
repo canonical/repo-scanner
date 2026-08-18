@@ -38,11 +38,12 @@ Dependency vulnerabilities, via trivy, grype, and govulncheck. Emits SARIF.
 govulncheck applies only to Go modules and is skipped on other repositories.
 This scan resolves dependencies first (see
 [SBOM generation](../explanation/sbom-generation.md)) and accepts
-`--allow-code-execution`.
+`--allow-code-execution` and `--include-dev-dependencies`.
 
 ## sbom
 
 Software bill of materials, via trivy, syft, and cdxgen. Emits CycloneDX. This
-scan resolves dependencies first and accepts `--allow-code-execution`. How it
-generates the inventory, and its coverage per ecosystem, are covered in
+scan resolves dependencies first and accepts `--allow-code-execution` and
+`--include-dev-dependencies`. How it generates the inventory, its dev-dependency
+handling, and its coverage per ecosystem, are covered in
 [SBOM generation](../explanation/sbom-generation.md).
