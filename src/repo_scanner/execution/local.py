@@ -3,10 +3,14 @@
 
 """Local execution context: run commands directly on the host."""
 
+import logging
 import os
 from collections.abc import Mapping, Sequence
 
+from repo_scanner.execution.context import RunUser
 from repo_scanner.execution.process import ExecResult, Failure, run_process
+
+logger = logging.getLogger(__name__)
 
 
 class LocalContext:
@@ -27,12 +31,19 @@ class LocalContext:
         *,
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
-        uid: int | None = None,  # ignored: local runs as the invoking user
+        user: RunUser | None = None,
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
         stdin: str | None = None,
     ) -> ExecResult | Failure:
+        if user is not None:
+            logger.warning(
+                "the local backend runs as the invoking user (uid %d); ignoring the "
+                "requested identity (uid %d)",
+                os.getuid(),
+                user.uid,
+            )
         run_env = None if env is None else {**os.environ, **env}
         return run_process(
             command,

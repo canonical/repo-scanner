@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
 
 import repo_scanner.execution.docker as docker
+from repo_scanner.execution.context import RunUser
 from repo_scanner.execution.docker import DockerContext
 from repo_scanner.execution.process import ExecResult, Failure
 
@@ -59,15 +60,45 @@ def test_stdin_keeps_the_exec_interactive() -> None:
     assert calls[-1][:3] == ["docker", "exec", "-i"]
 
 
-def test_a_uid_drops_privileges_via_setpriv() -> None:
+def test_a_user_drops_privileges_via_setpriv() -> None:
+    # The context's default identity (set at construction) wraps every command in
+    # setpriv --reuid/--regid with --clear-groups when it has no supplementary groups
+    # (setpriv keeps the caller's groups by default, which would leak root's groups
+    # to the dropped user).
     with _patched_run(ExecResult(0, "abc123\n", "")) as calls:
-        ctx = DockerContext("reposcan:tools")
+        ctx = DockerContext("reposcan:tools", user=RunUser(10000, 10000, ()))
         assert ctx.start() is None
-        ctx.run(["trivy", "fs", "."], cwd="/scan/acme", uid=10000)
+        ctx.run(["trivy", "fs", "."], cwd="/scan/acme")
     exec_argv = calls[-1]
     assert "HOME=/home/reposcan" in exec_argv  # the scan user's home for tool caches
     assert "setpriv" in exec_argv and "--reuid=10000" in exec_argv  # dropped to the uid
+    assert "--regid=10000" in exec_argv
+    assert "--clear-groups" in exec_argv  # no supplementary groups -> cleared
+    assert "--init-groups" not in exec_argv  # no /etc/group lookup
     assert exec_argv[-3:] == ["trivy", "fs", "."]  # the real command, after setpriv --
+
+
+def test_run_without_a_default_user_runs_as_root() -> None:
+    # A context built with no user runs as root: no setpriv, no HOME override.
+    with _patched_run(ExecResult(0, "abc123\n", "")) as calls:
+        ctx = DockerContext("reposcan:tools")
+        assert ctx.start() is None
+        ctx.run(["ls"])
+    exec_argv = calls[-1]
+    assert "setpriv" not in exec_argv
+    assert not any(a.startswith("HOME=") for a in exec_argv)
+
+
+def test_run_user_override_runs_as_that_identity_for_one_call() -> None:
+    # An explicit `user` on .run overrides the context's default for that call only.
+    with _patched_run(ExecResult(0, "abc123\n", "")) as calls:
+        ctx = DockerContext("reposcan:tools")  # default: root
+        assert ctx.start() is None
+        ctx.run(["ls"], user=RunUser(1000, 1000, (42,)))
+    exec_argv = calls[-1]
+    assert "--reuid=1000" in exec_argv and "--regid=1000" in exec_argv
+    assert "--groups=42" in exec_argv  # supplementary group set on the override
+    assert "HOME=/tmp" in exec_argv  # non-scan uid -> /tmp home
 
 
 def test_mounts_the_source_read_only_keeping_its_name() -> None:

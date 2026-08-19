@@ -39,7 +39,6 @@ class PackageManager(Protocol):
         workdir: str,
         names: set[str],
         tool_root: str,
-        uid: int,
         *,
         allow_code_execution: bool,
     ) -> None:
@@ -50,7 +49,6 @@ class PackageManager(Protocol):
             workdir: The directory's absolute path in the writable repo copy.
             names: The file basenames in `workdir`.
             tool_root: Where the tools are installed in the context.
-            uid: The user id the package manager runs as.
             allow_code_execution: Permit building source packages
                 (may run untrusted code).
         """
@@ -91,7 +89,6 @@ class Resolver(ABC):
         directory: str,
         names: set[str],
         tool_root: str,
-        uid: int,
         *,
         allow_code_execution: bool,
     ) -> None:
@@ -103,7 +100,6 @@ class Resolver(ABC):
             directory: The directory to resolve, relative to `repo_dir` ("" for root).
             names: The file basenames in `directory`.
             tool_root: Where the tools are installed in the context.
-            uid: The user id the resolvers run as.
             allow_code_execution: Permit building source packages (runs untrusted code).
         """
         workdir = repo_dir if not directory else f"{repo_dir}/{directory}"
@@ -114,6 +110,5 @@ class Resolver(ABC):
                     workdir,
                     names,
                     tool_root,
-                    uid,
                     allow_code_execution=allow_code_execution,
                 )

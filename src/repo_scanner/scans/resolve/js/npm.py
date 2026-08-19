@@ -51,7 +51,6 @@ class Npm:
         workdir: str,
         names: set[str],
         tool_root: str,
-        uid: int,
         *,
         allow_code_execution: bool,
     ) -> None:
@@ -60,7 +59,7 @@ class Npm:
         npm = f"{tool_root}/bin/npm"
         command = [npm, "install", "--package-lock-only", "--ignore-scripts"]
         logger.debug("detected npm; running: %s", " ".join(command))
-        if succeeded(ctx.run(command, cwd=workdir, env=_ENV, uid=uid)):
+        if succeeded(ctx.run(command, cwd=workdir, env=_ENV)):
             logger.debug("resolved npm project in %s", workdir)
         else:
             logger.warning("npm resolution skipped for %s: install failed", workdir)

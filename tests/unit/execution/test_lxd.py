@@ -10,6 +10,7 @@ from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager
 
 import repo_scanner.execution.lxd as lxd
+from repo_scanner.execution.context import RunUser
 from repo_scanner.execution.lxd import LxdContext, ensure_project
 from repo_scanner.execution.process import ExecResult, Failure
 
@@ -87,15 +88,50 @@ def test_launches_the_given_image_and_execs_commands_in_it() -> None:
     assert calls[-1] == expected
 
 
-def test_a_uid_drops_privileges_via_setpriv() -> None:
+def test_a_user_drops_privileges_via_setpriv() -> None:
+    # The context's default identity (set at construction) wraps every command in
+    # setpriv --reuid/--regid with --clear-groups when it has no supplementary groups;
+    # the scan user's home is set for tool caches.
     with _patched_responses(lambda argv: ExecResult(0, "", "")) as calls:
-        ctx = LxdContext("reposcan-tools")
+        ctx = LxdContext("reposcan-tools", user=RunUser(10000, 10000, ()))
         assert ctx.start() is None
-        ctx.run(["trivy", "fs", "."], cwd="/scan/acme", uid=10000)
+        ctx.run(["trivy", "fs", "."], cwd="/scan/acme")
     exec_argv = calls[-1]
     assert "HOME=/home/reposcan" in exec_argv  # the scan user's home for tool caches
     assert "setpriv" in exec_argv and "--reuid=10000" in exec_argv  # dropped to the uid
+    assert "--regid=10000" in exec_argv
+    assert "--clear-groups" in exec_argv  # no supplementary groups -> cleared
+    assert "--init-groups" not in exec_argv  # no /etc/group lookup
     assert exec_argv[-3:] == ["trivy", "fs", "."]  # the real command, after setpriv --
+
+
+def test_start_maps_the_default_user_via_a_per_instance_idmap() -> None:
+    # A non-root default user gets a per-instance raw.idmap (both uid+gid, plus each
+    # supplementary gid) set on launch, so LXD represents the host uid in the
+    # container's shifted namespace. Root and an unset user get no idmap.
+    user = RunUser(1000, 1000, (1000, 42, 100))  # primary already in `both`; one dup
+    with _patched_responses(lambda argv: ExecResult(0, "", "")) as calls:
+        ctx = LxdContext("reposcan-tools", user=user)
+        assert ctx.start() is None
+    launch = next(
+        c for c in calls if c[:4] == ["lxc", "--project", "reposcan", "launch"]
+    )
+    idx = launch.index("--config")
+    blob = launch[idx + 1]
+    assert blob.startswith("raw.idmap=")
+    lines = blob[len("raw.idmap=") :].split("\n")
+    assert lines[0] == "both 1000 1000"  # uid and primary gid mapped in one line
+    assert "gid 42 42" in lines and "gid 100 100" in lines  # supplementary gids
+    assert "gid 1000 1000" not in lines  # primary gid not duplicated
+    # Root and an unset user get no idmap (root is already in the default map).
+    for no_idmap_user in (RunUser(0, 0, ()), None):
+        with _patched_responses(lambda argv: ExecResult(0, "", "")) as calls:
+            ctx = LxdContext("reposcan-tools", user=no_idmap_user)
+            assert ctx.start() is None
+        launch = next(
+            c for c in calls if c[:4] == ["lxc", "--project", "reposcan", "launch"]
+        )
+        assert "--config" not in launch  # no idmap for root / unset
 
 
 def test_mounts_the_source_read_only_keeping_its_name() -> None:

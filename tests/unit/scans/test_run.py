@@ -5,7 +5,6 @@
 
 from collections.abc import Mapping, Sequence
 
-from repo_scanner.execution.context import SCAN_UID
 from repo_scanner.execution.process import ExecResult, Failure
 from repo_scanner.scans import sarif
 from repo_scanner.scans.base import ScanAction
@@ -21,7 +20,6 @@ class _FakeContext:
         self.commands: list[list[str]] = []
         self.streamed: list[tuple[bool, bool]] = []
         self.cwds: list[str | None] = []
-        self.uids: list[int | None] = []
         self.envs: list[Mapping[str, str] | None] = []
 
     def start(self) -> Failure | None:
@@ -33,7 +31,7 @@ class _FakeContext:
         *,
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
-        uid: int | None = None,
+        user: object | None = None,
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
@@ -42,7 +40,6 @@ class _FakeContext:
         self.commands.append(list(command))
         self.streamed.append((stream_stdout, stream_stderr))
         self.cwds.append(cwd)
-        self.uids.append(uid)
         self.envs.append(env)
         return self._result
 
@@ -101,10 +98,9 @@ def test_run_scan_streams_tool_progress_but_not_its_stdout() -> None:
     assert ctx.streamed == [(False, True)]
 
 
-def test_run_scan_cwd_uid_and_exclusions_per_invocation() -> None:
-    # A filesystem tool triggers the git lookup (git parses the fixed stdout into
-    # ignored paths -> trivy skip flags); git runs as root at the target, tools run
-    # at their cwd (default: the target) as the scan uid; an invocation may pin its cwd.
+def test_run_scan_cwd_and_exclusions_per_invocation() -> None:
+    # A filesystem tool triggers a git ls-files; git runs at the target, tools run at
+    # their cwd (the target); an invocation may pin its cwd.
     ctx = _FakeContext(ExecResult(0, ".venv/\0secret.env\0", ""))
     scan = _Scan(
         [
@@ -115,7 +111,6 @@ def test_run_scan_cwd_uid_and_exclusions_per_invocation() -> None:
     run_scan(scan, ctx, "/scan/acme", "/opt/reposcan")
     assert ctx.commands[0][:2] == ["git", "ls-files"]
     assert ctx.cwds == ["/scan/acme", "/scan/acme", "/module"]
-    assert ctx.uids == [None, SCAN_UID, SCAN_UID]  # git as root, tools as the scan uid
     assert ctx.commands[1][3:] == ["--skip-dirs", ".venv", "--skip-files", "secret.env"]
 
 

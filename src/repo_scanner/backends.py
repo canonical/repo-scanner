@@ -12,6 +12,7 @@ from typing import Protocol
 from repo_scanner.execution.context import (
     RESOLVED_PARENT,
     ExecutionContext,
+    RunUser,
     mounted_target,
 )
 from repo_scanner.execution.docker import DockerContext
@@ -70,13 +71,19 @@ class Backend(Protocol):
     def availability(self) -> Availability: ...
 
     def context(
-        self, image: str | None = None, *, mount_source: str | None = None
+        self,
+        image: str | None = None,
+        *,
+        mount_source: str | None = None,
+        user: RunUser | None = None,
     ) -> ExecutionContext:
         """A context to run in, optionally from `image`, with `mount_source` mounted.
 
         Args:
             image: The image to run, or None for the backend's default base.
             mount_source: A host directory to make available for scanning, or None.
+            user: The identity in-container processes run as by default (container
+                backends only); None runs as root.
 
         Returns:
             An unstarted execution context.
@@ -117,9 +124,13 @@ class LxdBackend:
         return _probe(["lxc", "info"])
 
     def context(
-        self, image: str | None = None, *, mount_source: str | None = None
+        self,
+        image: str | None = None,
+        *,
+        mount_source: str | None = None,
+        user: RunUser | None = None,
     ) -> ExecutionContext:
-        return LxdContext(image or BASE_IMAGE, mount_source=mount_source)
+        return LxdContext(image or BASE_IMAGE, mount_source=mount_source, user=user)
 
     def image_builder(self) -> ImageBuilder:
         return LxdImageBuilder()
@@ -141,9 +152,13 @@ class DockerBackend:
         return _probe(["docker", "info"])
 
     def context(
-        self, image: str | None = None, *, mount_source: str | None = None
+        self,
+        image: str | None = None,
+        *,
+        mount_source: str | None = None,
+        user: RunUser | None = None,
     ) -> ExecutionContext:
-        return DockerContext(image or BASE_IMAGE, mount_source=mount_source)
+        return DockerContext(image or BASE_IMAGE, mount_source=mount_source, user=user)
 
     def image_builder(self) -> ImageBuilder:
         return DockerImageBuilder()
@@ -165,9 +180,13 @@ class LocalBackend:
         return Availability(ok=True, reason="runs on the host")
 
     def context(
-        self, image: str | None = None, *, mount_source: str | None = None
+        self,
+        image: str | None = None,
+        *,
+        mount_source: str | None = None,
+        user: RunUser | None = None,
     ) -> ExecutionContext:
-        return LocalContext()  # runs on the host; the mount source is used in place
+        return LocalContext()
 
     def image_builder(self) -> None:
         return None  # tools install onto the host, not into an image
@@ -229,6 +248,7 @@ def context_for(
     *,
     tool_image: bool = True,
     image: str | None = None,
+    user: RunUser | None = None,
 ) -> ExecutionContext | Failure:
     """The execution context to run in.
 
@@ -248,6 +268,8 @@ def context_for(
             `image` is given; else a plain base container.
         image: A resolved remote image reference to pull and run. When set (and the
             backend can pull), it is used whether or not `tool_image` is set.
+        user: The identity in-container processes run as by default (container
+            backends only); None runs as root.
 
     Returns:
         A ready context, or a Failure if a pull or build failed.
@@ -260,7 +282,7 @@ def context_for(
                 backend.name,
                 image,
             )
-        return backend.context(mount_source=mount_source)  # local: the host
+        return backend.context(mount_source=mount_source, user=user)  # local: the host
 
     if image:
         puller = backend.image_puller()
@@ -268,7 +290,7 @@ def context_for(
             reference = ensure_pulled(puller, resolve_remote_ref(image))
             if isinstance(reference, Failure):
                 return reference
-            return backend.context(reference, mount_source=mount_source)
+            return backend.context(reference, mount_source=mount_source, user=user)
         logger.warning(
             "the %s backend cannot pull the configured image %r; %s",
             backend.name,
@@ -280,9 +302,9 @@ def context_for(
         reference = ensure_image(builder, build_spec(current_platform()))
         if isinstance(reference, Failure):
             return reference
-        return backend.context(reference, mount_source=mount_source)
+        return backend.context(reference, mount_source=mount_source, user=user)
 
-    return backend.context(mount_source=mount_source)  # plain base container
+    return backend.context(mount_source=mount_source, user=user)  # plain base container
 
 
 @dataclass(frozen=True)
@@ -317,6 +339,7 @@ def start_session(
     tool_image: bool,
     mount_source: str | None = None,
     image: str | None = None,
+    user: RunUser | None = None,
 ) -> Generator[Session]:
     """Select a backend and start a context in it.
 
@@ -332,13 +355,18 @@ def start_session(
             session's `target` reports where it is reachable in the context.
         image: A resolved remote image to pull and run instead of building the tool
             image locally, or None to build it.
+        user: The identity in-container processes run as by default (container backends
+            only); None runs as root. A backend that shifts uids (LXD) maps it before
+            the rootfs is shifted.
     """
     backend = select_backend(requested_backend)
     if isinstance(backend, Failure):
         logger.error(backend.reason)
         yield Session(None, "", 2)
         return
-    ctx = context_for(backend, mount_source, tool_image=tool_image, image=image)
+    ctx = context_for(
+        backend, mount_source, tool_image=tool_image, image=image, user=user
+    )
     if isinstance(ctx, Failure):
         logger.error(ctx.reason)
         yield Session(None, "", 1)

@@ -8,7 +8,7 @@ Uses the docker CLI (no SDK).
 
 from collections.abc import Mapping, Sequence
 
-from repo_scanner.execution.context import as_user, home_for, mounted_target
+from repo_scanner.execution.context import RunUser, as_user, home_for, mounted_target
 from repo_scanner.execution.process import ExecResult, Failure, run_process
 
 
@@ -21,9 +21,12 @@ class DockerContext:
 
     name = "docker"
 
-    def __init__(self, image: str, mount_source: str | None = None) -> None:
+    def __init__(
+        self, image: str, mount_source: str | None = None, user: RunUser | None = None
+    ) -> None:
         self._image = image
         self._mount_source = mount_source
+        self._user = user  # the default identity for every run (None = root)
         self._instance_name: str | None = None
 
     def start(self) -> Failure | None:
@@ -46,7 +49,7 @@ class DockerContext:
         *,
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
-        uid: int | None = None,
+        user: RunUser | None = None,
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
@@ -61,9 +64,10 @@ class DockerContext:
             argv += ["-w", cwd]
         run_env = dict(env or {})
         command = list(command)
-        if uid is not None:
-            run_env.setdefault("HOME", home_for(uid))
-            command = as_user(command, uid)
+        effective = self._user if user is None else user
+        if effective is not None:
+            run_env.setdefault("HOME", home_for(effective.uid))
+            command = as_user(command, effective)
         for key, value in sorted(run_env.items()):
             argv += ["-e", f"{key}={value}"]
         argv += [self._instance_name, *command]

@@ -75,9 +75,11 @@ def build_script(platform: Platform, install_root: str = INSTALL_ROOT) -> str:
         f"useradd --create-home --uid {SCAN_UID} --gid {SCAN_GID} "
         # --shell nologin since it is only ever setpriv'd into.
         f"--shell /usr/sbin/nologin {SCAN_USER}",
-        # the resolution copy dir, owned by the scan user so it can write copies there.
+        # the resolution copy dir, world-writable (sticky, like /tmp) so the
+        # invoking host user can write the repo copy there -- it is not known at
+        # build time, and the container is ephemeral and single-tenant.
         f"mkdir -p {RESOLVED_PARENT}",
-        f"chown {SCAN_UID}:{SCAN_GID} {RESOLVED_PARENT}",
+        f"chmod 1777 {RESOLVED_PARENT}",
     ]
     for step in install_plan(
         [*TOOLS.values(), *RESOLVER_TOOLS], platform, install_root

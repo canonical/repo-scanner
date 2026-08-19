@@ -33,7 +33,6 @@ class Pnpm:
         workdir: str,
         names: set[str],
         tool_root: str,
-        uid: int,
         *,
         allow_code_execution: bool,
     ) -> None:
@@ -41,7 +40,7 @@ class Pnpm:
         pnpm = PNPM.installed_path(tool_root)
         command = [pnpm, "install", "--lockfile-only", "--ignore-scripts"]
         logger.debug("detected pnpm; running: %s", " ".join(command))
-        if succeeded(ctx.run(command, cwd=workdir, env=_ENV, uid=uid)):
+        if succeeded(ctx.run(command, cwd=workdir, env=_ENV)):
             logger.debug("resolved pnpm workspace in %s", workdir)
         else:
             logger.warning("pnpm resolution skipped for %s: install failed", workdir)

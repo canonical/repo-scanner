@@ -37,24 +37,21 @@ class Uv:
         workdir: str,
         names: set[str],
         tool_root: str,
-        uid: int,
         *,
         allow_code_execution: bool,
     ) -> None:
         """Compile each uv-resolvable input in `workdir` into a pinned lockfile."""
-        for input_name in self._inputs(ctx, workdir, names, uid):
-            self._compile(
-                ctx, workdir, input_name, tool_root, uid, allow_code_execution
-            )
+        for input_name in self._inputs(ctx, workdir, names):
+            self._compile(ctx, workdir, input_name, tool_root, allow_code_execution)
 
     def _inputs(
-        self, ctx: ExecutionContext, workdir: str, names: set[str], uid: int
+        self, ctx: ExecutionContext, workdir: str, names: set[str]
     ) -> list[str]:
         """The manifest files in `workdir` uv should compile, in a stable order."""
         inputs: list[str] = []
         pep621 = False
         if "pyproject.toml" in names:
-            content = read_file(ctx, f"{workdir}/pyproject.toml", uid=uid)
+            content = read_file(ctx, f"{workdir}/pyproject.toml")
             if content is not None and _is_pep621(content):
                 inputs.append("pyproject.toml")
                 pep621 = True
@@ -62,13 +59,13 @@ class Uv:
             if _is_requirements_in(name):
                 inputs.append(name)  # a `.in` is meant to be compiled
             elif _is_requirements_txt(name):
-                content = read_file(ctx, f"{workdir}/{name}", uid=uid)
+                content = read_file(ctx, f"{workdir}/{name}")
                 # A fully pinned requirements.txt is already a lock the SBOM tools read.
                 if content is not None and _has_unpinned_requirement(content):
                     inputs.append(name)
         # setup.cfg only when a PEP 621 pyproject did not already cover the directory.
         if not pep621 and "setup.cfg" in names:
-            content = read_file(ctx, f"{workdir}/setup.cfg", uid=uid)
+            content = read_file(ctx, f"{workdir}/setup.cfg")
             if content is not None and "install_requires" in content:
                 inputs.append("setup.cfg")
         return inputs
@@ -79,7 +76,6 @@ class Uv:
         workdir: str,
         input_name: str,
         tool_root: str,
-        uid: int,
         allow_code_execution: bool,
     ) -> None:
         # A distinct `*requirements*.txt` name so the catalogers pick it up, but one
@@ -99,14 +95,14 @@ class Uv:
         env = {"UV_PYTHON_INSTALL_DIR": f"{tool_root}/{UV_PYTHON_SUBDIR}"}
         wheel_only = [*base, "--only-binary", ":all:"]
         logger.debug("detected python; running: %s", " ".join(wheel_only))
-        result = ctx.run(wheel_only, cwd=workdir, env=env, uid=uid)
+        result = ctx.run(wheel_only, cwd=workdir, env=env)
         if succeeded(result):
             logger.debug("resolved %s (wheel-only)", input_name)
             return
         if allow_code_execution:
             # Retry allowing source builds so source-only packages resolve (runs code).
             logger.debug("retrying %s with source builds", input_name)
-            result = ctx.run(base, cwd=workdir, env=env, uid=uid)
+            result = ctx.run(base, cwd=workdir, env=env)
             if succeeded(result):
                 logger.info("resolved %s (with source builds)", input_name)
                 return

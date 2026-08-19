@@ -37,25 +37,24 @@ class Pipenv:
         workdir: str,
         names: set[str],
         tool_root: str,
-        uid: int,
         *,
         allow_code_execution: bool,
     ) -> None:
         """Lock and export a Pipenv project's dependencies, best-effort."""
         pipenv = PIPENV.installed_path(tool_root)
         logger.debug("detected pipenv; running: %s lock", pipenv)
-        if not succeeded(ctx.run([pipenv, "lock"], cwd=workdir, env=_ENV, uid=uid)):
+        if not succeeded(ctx.run([pipenv, "lock"], cwd=workdir, env=_ENV)):
             logger.warning("pipenv resolution skipped for %s: lock failed", workdir)
             return
         # `pipenv requirements` prints the locked deps to stdout (it has no output
         # flag), so capture it and write the file ourselves.
-        exported = ctx.run([pipenv, "requirements"], cwd=workdir, env=_ENV, uid=uid)
+        exported = ctx.run([pipenv, "requirements"], cwd=workdir, env=_ENV)
         if not isinstance(exported, ExecResult) or exported.exit_code != 0:
             logger.warning(
                 "pipenv resolution skipped for %s: requirements failed", workdir
             )
             return
-        if write_file(ctx, _LOCK, exported.stdout, cwd=workdir, uid=uid):
+        if write_file(ctx, _LOCK, exported.stdout, cwd=workdir):
             logger.debug("resolved pipenv project in %s", workdir)
         else:
             logger.warning(

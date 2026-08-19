@@ -16,7 +16,7 @@ import logging
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
-from repo_scanner.execution.context import SCAN_UID, ExecutionContext, read_file
+from repo_scanner.execution.context import ExecutionContext, read_file
 from repo_scanner.execution.process import ExecResult, Failure
 from repo_scanner.scans.exclude import (
     EXCLUDABLE_TOOLS,
@@ -41,7 +41,6 @@ def run_scan(
     *,
     resolved_parent: str = "",
     stream: bool = False,
-    uid: int = SCAN_UID,
 ) -> Artifact | Failure:
     """Run `scan` against `target` in `ctx` and consolidate its tools' outputs.
 
@@ -61,7 +60,6 @@ def run_scan(
         stream: When True, echo each tool's live progress (its stderr) to the console
             as it runs. Each tool's stdout (its results) is captured but not echoed,
             so streaming never dumps the report to the console.
-        uid: The user id for all in-container processes. Must exist in the image.
 
     Returns:
         The scan's consolidated artifact, or the first Failure encountered.
@@ -72,7 +70,6 @@ def run_scan(
             target,
             tool_root,
             resolved_parent,
-            uid=uid,
             allow_code_execution=getattr(scan, "allow_code_execution", False),
         )
     invocations = scan.invocations(target)
@@ -99,7 +96,6 @@ def run_scan(
             cmd,
             cwd=invocation.cwd or target,
             env=invocation.env,
-            uid=uid,
             stream_stdout=False,
             stream_stderr=stream,
         )

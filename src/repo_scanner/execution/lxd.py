@@ -9,7 +9,12 @@ Uses the lxc CLI (no SDK).
 import os
 from collections.abc import Mapping, Sequence
 
-from repo_scanner.execution.context import as_user, home_for, mounted_target
+from repo_scanner.execution.context import (
+    RunUser,
+    as_user,
+    home_for,
+    mounted_target,
+)
 from repo_scanner.execution.firewall import warn_if_lxd_bridge_blocked
 from repo_scanner.execution.process import ExecResult, Failure, run_process, succeeded
 
@@ -58,9 +63,12 @@ class LxdContext:
 
     name = "lxd"
 
-    def __init__(self, image: str, mount_source: str | None = None) -> None:
+    def __init__(
+        self, image: str, mount_source: str | None = None, user: RunUser | None = None
+    ) -> None:
         self._image = image
         self._mount_source = mount_source
+        self._user = user  # the default identity for every run (None = root)
         self._instance_name: str | None = None
 
     def start(self) -> Failure | None:
@@ -69,7 +77,14 @@ class LxdContext:
         if project_creation_error is not None:
             return project_creation_error
         handle = f"reposcan-{os.getpid()}"
-        result = run_process([*LXC, "launch", self._image, handle, "--ephemeral"])
+        argv = [*LXC, "launch", self._image, handle, "--ephemeral"]
+        idmap = _raw_idmap(self._user)
+        if idmap is not None:
+            # Set at launch: LXD shifts the rootfs uids as it starts, so the idmap
+            # must be in place before the instance runs. Per-instance (not a profile)
+            # so each scan maps exactly the invoking user.
+            argv += ["--config", f"raw.idmap={idmap}"]
+        result = run_process(argv)
         if isinstance(result, Failure):
             return result
         if result.exit_code != 0:
@@ -112,7 +127,7 @@ class LxdContext:
         *,
         cwd: str | None = None,
         env: Mapping[str, str] | None = None,
-        uid: int | None = None,
+        user: RunUser | None = None,
         timeout: float | None = None,
         stream_stdout: bool = False,
         stream_stderr: bool = False,
@@ -125,9 +140,10 @@ class LxdContext:
             argv += ["--cwd", cwd]
         run_env = dict(env or {})
         command = list(command)
-        if uid is not None:
-            run_env.setdefault("HOME", home_for(uid))
-            command = as_user(command, uid)
+        effective = self._user if user is None else user
+        if effective is not None:
+            run_env.setdefault("HOME", home_for(effective.uid))
+            command = as_user(command, effective)
         for key, value in sorted(run_env.items()):
             argv += ["--env", f"{key}={value}"]
         argv += ["--", *command]
@@ -143,3 +159,20 @@ class LxdContext:
         if self._instance_name is not None:
             run_process([*LXC, "stop", self._instance_name])
             self._instance_name = None
+
+
+def _raw_idmap(user: RunUser | None) -> str | None:
+    """A LXD raw.idmap mapping `user` to identity, or None when no mapping is needed.
+
+    `both <uid> <uid>` maps both the uid and the primary gid to identity; each
+    supplementary gid gets a `gid <gid> <gid>` line. Root (uid 0) is already in the
+    default idmap, so it needs no entry -- mapping it again would conflict. None is
+    also returned when no user is set (the default idmap applies).
+    """
+    if user is None or user.uid == 0:
+        return None
+    lines = [f"both {user.uid} {user.uid}"]
+    for gid in user.groups:
+        if gid != user.gid:  # `both` already mapped the primary gid
+            lines.append(f"gid {gid} {gid}")
+    return "\n".join(lines)

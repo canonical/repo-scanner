@@ -18,7 +18,7 @@ from typing import ClassVar
 from repo_scanner.actions.base import Action
 from repo_scanner.backends import start_session
 from repo_scanner.clikit import flag, option, positional
-from repo_scanner.execution.context import SCAN_UID
+from repo_scanner.execution.context import RunUser, host_user
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import output
 from repo_scanner.scans.model import Artifact, ArtifactKind, ToolInvocation, ToolResult
@@ -84,9 +84,13 @@ class ScanAction(Action):
                 "output file already exists, refusing to overwrite: %s", self.output
             )
             return 2
-        uid = SCAN_UID if self.uid is None else self.uid
+        user = host_user() if self.uid is None else RunUser(self.uid, self.uid, ())
         with start_session(
-            self.backend, tool_image=True, mount_source=path, image=self.image
+            self.backend,
+            tool_image=True,
+            mount_source=path,
+            image=self.image,
+            user=user,
         ) as session:
             if not session.ok:
                 return session.exit_code
@@ -98,7 +102,6 @@ class ScanAction(Action):
                 session.tool_root,
                 resolved_parent=session.resolved_parent,
                 stream=True,
-                uid=uid,
             )
             if isinstance(artifact, Failure):
                 logger.error(artifact.reason)

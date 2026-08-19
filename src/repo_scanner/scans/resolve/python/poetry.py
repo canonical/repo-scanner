@@ -40,17 +40,16 @@ class Poetry:
         workdir: str,
         names: set[str],
         tool_root: str,
-        uid: int,
         *,
         allow_code_execution: bool,
     ) -> None:
         """Lock and export a legacy Poetry project's dependencies, best-effort."""
-        content = read_file(ctx, f"{workdir}/pyproject.toml", uid=uid)
+        content = read_file(ctx, f"{workdir}/pyproject.toml")
         if content is None or not _is_legacy_poetry(content):
             return  # PEP 621 or not Poetry at all: the uv package manager handles it
         poetry = POETRY.installed_path(tool_root)
         logger.debug("detected poetry; running: %s lock", poetry)
-        if not succeeded(ctx.run([poetry, "lock"], cwd=workdir, env=_ENV, uid=uid)):
+        if not succeeded(ctx.run([poetry, "lock"], cwd=workdir, env=_ENV)):
             logger.warning("poetry resolution skipped for %s: lock failed", workdir)
             return
         export = [
@@ -62,7 +61,7 @@ class Poetry:
             "-o",
             _LOCK,
         ]
-        if succeeded(ctx.run(export, cwd=workdir, env=_ENV, uid=uid)):
+        if succeeded(ctx.run(export, cwd=workdir, env=_ENV)):
             logger.debug("resolved poetry project in %s", workdir)
         else:
             logger.warning("poetry resolution skipped for %s: export failed", workdir)
