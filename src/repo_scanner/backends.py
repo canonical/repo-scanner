@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Execution/build backends: lxd, docker, local."""
+"""Execution/build backends: docker, lxd, local."""
 
 import logging
 from collections.abc import Generator
@@ -209,8 +209,8 @@ class LocalBackend:
         return str(resolve_cache())
 
 
-# Backends in selection-precedence order: containers preferred, local last.
-_BACKENDS: tuple[Backend, ...] = (LxdBackend(), DockerBackend(), LocalBackend())
+# Backends in selection-precedence order: docker, then lxd, then local.
+_BACKENDS: tuple[Backend, ...] = (DockerBackend(), LxdBackend(), LocalBackend())
 _BY_NAME = {backend.name: backend for backend in _BACKENDS}
 
 # Values accepted for --backend and the `backend` config key.
@@ -225,7 +225,7 @@ def select_backend(requested: str | None) -> Backend | Failure:
             fallback happens during parameter resolution, upstream of here.)
 
     Returns:
-        The selected backend; 'auto' picks the first available of lxd, docker,
+        The selected backend; 'auto' picks the first available of docker, lxd,
         then local. A Failure if the requested backend is unknown or
         unavailable, or if none is available.
     """

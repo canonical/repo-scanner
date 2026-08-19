@@ -1,13 +1,13 @@
 # Choose a backend
 
-A backend is where the tools run. reposcan supports three: `lxd` and `docker`
+A backend is where the tools run. reposcan supports three: `docker` and `lxd`
 run each scan in an ephemeral container. `local` runs the tools directly on the
 host.
 
 ## Let reposcan choose
 
 With no backend set, reposcan selects one automatically by availability, in the
-order LXD, then Docker, then local.
+order Docker, then LXD, then local.
 
 ## Set the backend explicitly
 
@@ -20,7 +20,7 @@ export REPOSCAN_BACKEND=docker                 # this shell
 reposcan config set backend docker             # persisted
 ```
 
-`--backend` accepts `auto`, `lxd`, `docker`, or `local`. When two sources
+`--backend` accepts `auto`, `docker`, `lxd`, or `local`. When two sources
 disagree, reposcan logs which one won.
 
 ## Use the local backend

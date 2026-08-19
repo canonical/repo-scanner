@@ -7,7 +7,7 @@ change its format.
 ## Prerequisites
 
 reposcan runs each scan in an ephemeral container, so you need one container
-backend available: LXD (preferred) or Docker. It can also run directly on the
+backend available: Docker (preferred) or LXD. It can also run directly on the
 host, but that is discouraged and not used here. Installing the CLI needs Python
 3.10 or newer.
 

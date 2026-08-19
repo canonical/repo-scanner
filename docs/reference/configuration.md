@@ -21,8 +21,8 @@ falling through to the next source.
 ## Keys
 
 - `backend`: the execution backend tools run in. Option `--backend`, env
-  `REPOSCAN_BACKEND`, values `auto`/`lxd`/`docker`/`local`, fallback `auto`.
-  `auto` selects LXD, then Docker, then local, by availability.
+  `REPOSCAN_BACKEND`, values `auto`/`docker`/`lxd`/`local`, fallback `auto`.
+  `auto` selects Docker, then LXD, then local, by availability.
 - `verbosity`: the lowest log level written to stderr. Option
   `-v`/`--verbosity`, env `REPOSCAN_VERBOSITY`, values
   `debug`/`info`/`warning`/`error`/`critical`, fallback `info`.

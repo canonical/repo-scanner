@@ -17,7 +17,7 @@ config, then the default (see [configuration](configuration.md)).
 - `-v, --verbosity <level>`: lowest log level written to stderr, one of `debug`,
   `info`, `warning`, `error`, `critical`. Env `REPOSCAN_VERBOSITY`, config
   `verbosity`, fallback `info`.
-- `--backend <name>`: where tools run, one of `auto`, `lxd`, `docker`, `local`.
+- `--backend <name>`: where tools run, one of `auto`, `docker`, `lxd`, `local`.
   Env `REPOSCAN_BACKEND`, config `backend`, fallback `auto`.
 - `--uid <UID>`: UID for in-container processes (ignored by the local backend).
   Env `REPOSCAN_UID`, config `uid`, fallback the built-in scan user.

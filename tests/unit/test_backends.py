@@ -15,7 +15,6 @@ from contextlib import contextmanager
 import repo_scanner.backends as backends
 from repo_scanner.backends import (
     Backend,
-    ContainerBackend,
     DockerBackend,
     LocalBackend,
     LxdBackend,
@@ -65,9 +64,9 @@ def _backend(requested: str | None) -> Backend:
 
 def test_auto_selects_the_first_available_in_precedence_order() -> None:
     with _availability(lxd_ok=True, docker_ok=True):
-        assert _backend("auto").name == "lxd"
-    with _availability(lxd_ok=False, docker_ok=True):
         assert _backend("auto").name == "docker"
+    with _availability(lxd_ok=True, docker_ok=False):
+        assert _backend("auto").name == "lxd"
     with _availability(lxd_ok=False, docker_ok=False):
         assert _backend("auto").name == "local"  # always available, the last resort
 

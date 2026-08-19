@@ -19,7 +19,7 @@ repository does not execute it.
 An execution context is a place reposcan can run commands, exposing a small
 lifecycle: start, run, stop. There are three: a local context on the host,
 Docker, and LXD. A backend decides whether its context is available and
-constructs it; backend selection prefers LXD, then Docker, then local (see
+constructs it; backend selection prefers Docker, then LXD, then local (see
 [choose a backend](../how-to/choose-a-backend.md)).
 
 The container backends bind-mount the target repository read-only at
