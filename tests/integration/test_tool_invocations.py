@@ -42,7 +42,7 @@ from contextlib import (
 import pytest
 
 from repo_scanner.actions.invoke import invoke
-from repo_scanner.backends import Backend, DockerBackend, LxdBackend
+from repo_scanner.backends import ContainerBackend, DockerBackend, LxdBackend
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
 from repo_scanner.image.build_spec import INSTALL_ROOT, build_spec
@@ -90,7 +90,9 @@ def _invoke(ctx: ExecutionContext, name: str, args: list[str]) -> tuple[int, str
     return code, out.getvalue() + err.getvalue()
 
 
-def _probe_every_tool_in(backend: Backend, *, force_rebuild: bool = False) -> None:
+def _probe_every_tool_in(
+    backend: ContainerBackend, *, force_rebuild: bool = False
+) -> None:
     availability = backend.availability()
     if not availability.ok:
         logger.warning(availability.reason)
@@ -98,7 +100,6 @@ def _probe_every_tool_in(backend: Backend, *, force_rebuild: bool = False) -> No
     assert set(_VERSION_PROBE) == set(TOOLS)  # probe table matches the tool set
 
     builder = backend.image_builder()
-    assert builder is not None, f"{backend.name} builds no images"
     with _isolated_cache() if force_rebuild else nullcontext():
         action = "reusing" if force_rebuild else "building"
         logger.info("[%s] %s tool image; output follows", backend.name, action)

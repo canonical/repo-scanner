@@ -7,7 +7,7 @@ import logging
 import sys
 
 from repo_scanner.actions.base import Action
-from repo_scanner.backends import select_backend
+from repo_scanner.backends import ContainerBackend, select_backend
 from repo_scanner.clikit import Group, flag, positional
 from repo_scanner.execution.process import Failure
 from repo_scanner.image import cache
@@ -29,11 +29,10 @@ class ImageBuild(Action):
         if isinstance(backend, Failure):
             logger.error(backend.reason)
             return 2
-        builder = backend.image_builder()
-        if builder is None:
+        if not isinstance(backend, ContainerBackend):
             logger.error("the %s backend cannot build images", backend.name)
             return 2
-        return build_image(builder, force=self.force)
+        return build_image(backend.image_builder(), force=self.force)
 
 
 class CacheList(Action):

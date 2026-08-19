@@ -15,6 +15,7 @@ from contextlib import contextmanager
 import repo_scanner.backends as backends
 from repo_scanner.backends import (
     Backend,
+    ContainerBackend,
     DockerBackend,
     LocalBackend,
     LxdBackend,
@@ -88,13 +89,6 @@ def test_invalid_selections_are_failures() -> None:
     assert isinstance(failure, Failure) and "docker" in failure.reason
 
 
-def test_only_container_backends_provide_an_image_builder() -> None:
-    with _availability(lxd_ok=True, docker_ok=True):
-        assert _backend("lxd").image_builder() is not None
-        assert _backend("docker").image_builder() is not None
-    assert _backend("local").image_builder() is None  # local installs onto the host
-
-
 def test_resolved_parent_is_the_image_dir_for_containers_and_a_cache_for_local() -> (
     None
 ):
@@ -112,12 +106,7 @@ def test_resolved_parent_is_the_image_dir_for_containers_and_a_cache_for_local()
     assert local == "/tmp/xdg-cache/reposcan/resolved"
 
 
-def test_context_local_on_host_container_in_the_verified_image() -> None:
-    # Local: tools are on the host, no image is built.
-    assert isinstance(context_for(LocalBackend()), LocalContext)
-
-    # Container: the tool image (here stubbed via ensure_image) is run; a build
-    # failure surfaces as a Failure.
+def test_context_for_runs_the_tool_image_in_a_container() -> None:
     def ensure_ok(builder: object, spec: object, *, force: bool = False) -> str:
         return "reposcan:tools"
 
