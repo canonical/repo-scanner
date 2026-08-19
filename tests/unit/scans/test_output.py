@@ -11,8 +11,8 @@ import sqlite3
 import tempfile
 from contextlib import redirect_stdout
 
-from repo_scanner import table
 from repo_scanner.execution.process import Failure
+from repo_scanner.ioutil import table
 from repo_scanner.scans import cyclonedx, sarif
 from repo_scanner.scans.output import Format, emit
 

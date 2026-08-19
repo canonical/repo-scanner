@@ -9,10 +9,10 @@ it as a table, as JSON, or as a sqlite database.
 
 import logging
 
-from repo_scanner import sqlitedb
 from repo_scanner.actions.base import Action
 from repo_scanner.clikit import flag, option, positional
 from repo_scanner.execution.process import Failure
+from repo_scanner.ioutil import sqlitedb
 from repo_scanner.scans import cyclonedx, output, reportdb, sarif
 from repo_scanner.scans.model import Artifact
 from repo_scanner.scans.output import DEFAULT_ROW_LIMIT, Format

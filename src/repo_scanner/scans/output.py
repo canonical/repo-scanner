@@ -15,9 +15,9 @@ import sys
 from enum import Enum
 
 from repo_scanner.execution.process import Failure
+from repo_scanner.ioutil.table import render_table
 from repo_scanner.scans import reportdb
 from repo_scanner.scans.model import Artifact
-from repo_scanner.table import render_table
 
 logger = logging.getLogger(__name__)
 

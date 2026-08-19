@@ -13,8 +13,8 @@ import shlex
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+from repo_scanner.ioutil.sqlitedb import Table
 from repo_scanner.scans.model import ArtifactKind, ToolInvocationRecord
-from repo_scanner.sqlitedb import Table
 
 SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 

@@ -1,25 +1,24 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Multi-source parameter resolution and the config store it reads from.
+"""Multi-source parameter resolution.
 
-Every parameter resolves CLI > env > config > default. This module owns all three
-of those lower sources: the persisted config file (`load`/`save`, edited by the
-`config` command), the environment, and the precedence merge (`resolve`) that
-converts and validates each value and logs an override when sources disagree.
+Every parameter resolves CLI > env > config > default. This module owns the
+precedence merge (`resolve`) that converts and validates each value and logs an
+override when sources disagree; the environment and the persisted config file (read
+via `repo_scanner.ioutil.config`) are the lower sources it reads from.
 
 Positionals and remainders are command-line only; value options and flags may also
 be read from the environment (REPOSCAN_<NAME>) and, when marked, from config.
 """
 
-import json
 import logging
 import os
 from collections.abc import Iterable, Mapping
-from pathlib import Path
 from typing import Any
 
 from repo_scanner.clikit.spec import Param
+from repo_scanner.ioutil.config import load
 
 logger = logging.getLogger(__name__)
 
@@ -44,44 +43,6 @@ def parse_bool(value: str) -> bool:
     if lowered in ("0", "false", "no", "off", ""):
         return False
     raise ValueError(f"expected a boolean, got {value!r}")
-
-
-# --- the config store --------------------------------------------------------
-
-
-def config_path() -> Path:
-    """The config file location ($XDG_CONFIG_HOME/reposcan/config.json)."""
-    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
-    return Path(base) / "reposcan" / "config.json"
-
-
-def load() -> dict[str, Any]:
-    """The saved config, or {} when there is none or it is unreadable/malformed."""
-    path = config_path()
-    try:
-        text = path.read_text()
-    except FileNotFoundError:
-        return {}
-    except OSError as exc:
-        logger.warning("could not read config %s: %s", path, exc)
-        return {}
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as exc:
-        logger.warning("ignoring malformed config %s: %s", path, exc)
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def save(settings: Mapping[str, Any]) -> str | None:
-    """Write `settings` as JSON; return an error message, or None on success."""
-    path = config_path()
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(dict(settings), indent=2, sort_keys=True) + "\n")
-    except OSError as exc:
-        return f"could not write config {path}: {exc}"
-    return None
 
 
 # --- resolution --------------------------------------------------------------

@@ -1,13 +1,13 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the generic sqlite tabular store (repo_scanner.sqlitedb)."""
+"""Tests for the generic sqlite tabular store (repo_scanner.ioutil.sqlitedb)."""
 
 import os
 import sqlite3
 import tempfile
 
-from repo_scanner.sqlitedb import Table, is_sqlite, read, write
+from repo_scanner.ioutil.sqlitedb import Table, is_sqlite, read, write
 
 
 def test_is_sqlite_detects_the_header() -> None:

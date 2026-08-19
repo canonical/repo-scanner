@@ -12,7 +12,7 @@ and dispatch. This package is the whole surface: consumers import from
 
 from repo_scanner.clikit.dispatch import configure_logging, dispatch
 from repo_scanner.clikit.parse import parse
-from repo_scanner.clikit.resolve import LOG_LEVELS, coerce, load, resolve, save
+from repo_scanner.clikit.resolve import LOG_LEVELS, coerce, resolve
 from repo_scanner.clikit.spec import (
     Action,
     Cli,
@@ -37,12 +37,10 @@ __all__ = [
     "configure_logging",
     "dispatch",
     "flag",
-    "load",
     "option",
     "params_of",
     "parse",
     "positional",
     "remainder",
     "resolve",
-    "save",
 ]

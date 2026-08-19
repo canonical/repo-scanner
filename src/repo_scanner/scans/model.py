@@ -15,7 +15,7 @@ from enum import Enum
 from typing import Any, ClassVar, Protocol
 
 from repo_scanner.execution.process import ExecResult
-from repo_scanner.sqlitedb import Table
+from repo_scanner.ioutil.sqlitedb import Table
 
 
 class ArtifactKind(str, Enum):

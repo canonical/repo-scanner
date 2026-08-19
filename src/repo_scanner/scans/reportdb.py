@@ -4,7 +4,7 @@
 """Store and reconstruct a scan artifact as a sqlite report database.
 
 This is the domain glue between an `Artifact` and the generic tabular store
-(`repo_scanner.sqlitedb`). The database is normalized so the artifact is both
+(`repo_scanner.ioutil.sqlitedb`). The database is normalized so the artifact is both
 queryable and fully reconstructable:
 
 - a `metadata` table holds the document with its entries emptied (the kind plus all
@@ -21,10 +21,10 @@ stored order) back into the metadata shell.
 import copy
 import json
 
-from repo_scanner import sqlitedb
+from repo_scanner.ioutil import sqlitedb
+from repo_scanner.ioutil.sqlitedb import Table
 from repo_scanner.scans import cyclonedx, sarif
 from repo_scanner.scans.model import Artifact, ArtifactKind
-from repo_scanner.sqlitedb import Table
 
 
 def write(artifact: Artifact, path: str) -> None:
