@@ -51,21 +51,17 @@ sqlite database (detected by content). Options: `-o/--output`, `-f/--format`,
 ## exec
 
 `reposcan exec -- <command>` runs an arbitrary command in the selected execution
-context. Separate the command from reposcan's own options with `--`. Option:
-`--timeout <SECONDS>` kills the command after that long.
+context, including any installed scanning tool. Separate the command from
+reposcan's own options with `--`. Option: `--timeout <SECONDS>` kills the command
+after that long.
 
 ```
-reposcan exec -- semgrep --version
+reposcan exec -- trivy --version
+reposcan exec -- semgrep -h
 ```
 
-## invoke
-
-`reposcan invoke <tool> -- <args>` runs one installed tool, passing every
-argument after `--` through to it unchanged.
-
-```
-reposcan invoke trivy -- --version
-```
+The scanning tools are symlinked onto `/usr/local/bin` in the tool image, so they
+are on `PATH` and can be run by name. Use `reposcan tools` to list them.
 
 ## tools
 

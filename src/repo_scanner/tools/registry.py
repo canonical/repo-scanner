@@ -15,10 +15,7 @@ pypi.org file listings, and the Go checksum database show the hash on the page
 itself; for the GitHub-released binaries the linked release page carries the
 project's own published checksums for that version.
 
-`TOOLS` maps each scanning tool's name to it, and is what `tools`, `bootstrap`, and
-`invoke` operate on. uv and the Go SDK are not in it: they are build prerequisites,
-pulled in automatically through each tool's `requires`. Look a tool up with
-`TOOLS.get(name)`.
+`TOOLS` is a map of display-name:Tool pairs for all user-facing scanning tools.
 """
 
 from pathlib import Path
@@ -272,8 +269,7 @@ ZIZMOR = PypiTool(
     requires=(UV,),
 )
 
-# all scanning tools keyed by name; this is the user-facing set that `tools` lists
-# and `bootstrap`/`invoke` operate on.
+# all user-facing scanning tools keyed by name
 TOOLS: dict[str, Tool] = {
     tool.name: tool
     for tool in (

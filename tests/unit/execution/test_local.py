@@ -27,3 +27,11 @@ def test_write_file_feeds_content_over_stdin_and_read_file_reads_it_back() -> No
         path = os.path.join(tmp, "lock.txt")
         assert write_file(ctx, path, "flask==3.0.0\nrequests==2.31.0\n") is True
         assert read_file(ctx, path) == "flask==3.0.0\nrequests==2.31.0\n"
+
+
+def test_a_tool_root_is_prepended_to_path_so_exec_finds_tools() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ctx = LocalContext(tool_root=tmp)
+        result = ctx.run([sys.executable, "-c", "import os; print(os.environ['PATH'])"])
+    assert isinstance(result, ExecResult)
+    assert result.stdout.strip().startswith(f"{tmp}{os.pathsep}")

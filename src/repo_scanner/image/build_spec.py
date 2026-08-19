@@ -88,6 +88,11 @@ def build_script(platform: Platform, install_root: str = INSTALL_ROOT) -> str:
         lines.extend(step.commands)
     # tools are installed as root; make them readable and executable by the scan user.
     lines.append(f"chmod -R a+rX {install_root}")
+    # Symlink every tool binary onto /usr/local/bin (on PATH for docker/lxd `exec`
+    lines.append(
+        f'for f in {install_root}/bin/*; do ln -sf "$f" '
+        f'"/usr/local/bin/$(basename "$f")"; done'
+    )
     return "\n".join(lines) + "\n"
 
 

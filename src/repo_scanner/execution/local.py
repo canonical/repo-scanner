@@ -17,10 +17,14 @@ class LocalContext:
     """Runs commands on the host.
 
     Nothing to start or stop. Per-command `env` is overlaid on the inherited host
-    environment.
+    environment. The local backend always runs as the invoking user. Always prepends
+    `tool_root` to PATH for command execution.
     """
 
     name = "local"
+
+    def __init__(self, tool_root: str | None = None) -> None:
+        self._tool_root = tool_root
 
     def start(self) -> Failure | None:
         return None
@@ -44,7 +48,13 @@ class LocalContext:
                 os.getuid(),
                 user.uid,
             )
-        run_env = None if env is None else {**os.environ, **env}
+        run_env = {**os.environ, **env} if env is not None else None
+        if self._tool_root is not None:
+            path = f"{self._tool_root}{os.pathsep}{os.environ.get('PATH', '')}"
+            if run_env is None:
+                run_env = {**os.environ, "PATH": path}
+            else:
+                run_env["PATH"] = path
         return run_process(
             command,
             cwd=cwd,

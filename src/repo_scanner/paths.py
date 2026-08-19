@@ -32,7 +32,7 @@ def resolve_cache() -> Path:
 
 
 def tools_root() -> Path:
-    """Where `bootstrap` installs tools and `invoke`/`tools` look for them.
+    """Where `bootstrap` installs tools and `tools` looks for them.
 
     $XDG_DATA_HOME/reposcan/tools (default ~/.local/share/reposcan/tools).
     """

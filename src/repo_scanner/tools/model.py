@@ -89,8 +89,7 @@ class Tool(Protocol):
     def installed_path(self, install_root: str) -> str:
         """The installed executable's path under `install_root`.
 
-        It exists only once the tool is installed, so it doubles as the marker `tools`
-        checks, and it is what `invoke` runs.
+        It exists only once the tool is installed, so it doubles as an install marker.
         """
         ...
 
@@ -195,8 +194,7 @@ class PypiTool:
     kind: ClassVar[ToolKind] = ToolKind.PYPI
 
     def installed_path(self, install_root: str) -> str:
-        # The first console script is the command `invoke` runs; it is symlinked last
-        # in the install, so it also marks that the venv install completed.
+        # path to invoke the package's first console script.
         entry = self.entrypoints[0] if self.entrypoints else self.name
         return f"{install_root}/bin/{entry}"
 

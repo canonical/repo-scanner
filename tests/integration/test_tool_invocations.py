@@ -4,7 +4,7 @@
 """Integration tests: build the real tool image and invoke every tool in it.
 
 For each container backend (docker, lxd), force a real, hash-verified build of the tool
-image, then run every tool through the real, unpatched `invoke` with a
+image, then run every tool through the real, unpatched `exec` with a
 version probe, checking the pinned version appears in its output. This exercises the
 whole path end to end: image creation and every tool invocation.
 
@@ -41,11 +41,11 @@ from contextlib import (
 
 import pytest
 
-from repo_scanner.actions.invoke import invoke
+from repo_scanner.actions.exec import execute
 from repo_scanner.backends import ContainerBackend, DockerBackend, LxdBackend
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
-from repo_scanner.image.build_spec import INSTALL_ROOT, build_spec
+from repo_scanner.image.build_spec import build_spec
 from repo_scanner.image.builder import ensure_image
 from repo_scanner.tools.install import current_platform
 from repo_scanner.tools.registry import TOOLS
@@ -86,7 +86,7 @@ def _isolated_cache() -> Iterator[None]:
 def _invoke(ctx: ExecutionContext, name: str, args: list[str]) -> tuple[int, str]:
     out, err = io.StringIO(), io.StringIO()
     with redirect_stdout(out), redirect_stderr(err):
-        code = invoke(ctx, name, args, INSTALL_ROOT, timeout=180)
+        code = execute(ctx, [name, *args], timeout=180)
     return code, out.getvalue() + err.getvalue()
 
 

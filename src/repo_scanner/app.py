@@ -8,7 +8,6 @@ from repo_scanner.actions.bootstrap import BootstrapAction
 from repo_scanner.actions.config import ConfigGroup
 from repo_scanner.actions.exec import ExecAction
 from repo_scanner.actions.image import ImageGroup
-from repo_scanner.actions.invoke import InvokeAction
 from repo_scanner.actions.render import RenderAction
 from repo_scanner.actions.tools import ToolsAction
 from repo_scanner.clikit import Cli, Group
@@ -22,7 +21,6 @@ class Reposcan(Group):
         ExecAction,
         ToolsAction,
         BootstrapAction,
-        InvokeAction,
         RenderAction,
         ImageGroup,
         ConfigGroup,

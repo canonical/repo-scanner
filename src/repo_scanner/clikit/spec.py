@@ -207,7 +207,7 @@ def positional(
 def remainder(help: str = "") -> Any:
     """Everything after `--` (or the trailing positionals), captured verbatim.
 
-    Command-line only; used for `exec`/`invoke` passthrough.
+    Command-line only; used for `exec` passthrough.
     """
     return Param(remainder=True, default=[], help=help, env=False)
 

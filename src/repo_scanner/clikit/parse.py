@@ -6,7 +6,7 @@
 One left-to-right pass. Options in scope are recognized wherever they appear (the
 flow-down globals are in scope from the start, so a global may come before or after
 any subcommand); non-option tokens select subcommands until a leaf is reached, then
-fill its positionals; `--` (or, for an `exec`/`invoke` leaf, the first trailing
+fill its positionals; `--` (or, for an `exec` leaf, the first trailing
 token) starts a verbatim remainder. Nothing here reads env or config.
 """
 

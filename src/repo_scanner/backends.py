@@ -380,7 +380,7 @@ def start_session(
                 backend.name,
                 image,
             )
-        ctx = LocalContext()
+        ctx = LocalContext(tool_root=f"{backend.tool_root()}/bin")
         target = mount_source
     error = ctx.start()
     if error is not None:
