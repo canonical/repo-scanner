@@ -8,6 +8,7 @@ import sys
 
 from repo_scanner.actions.base import Action
 from repo_scanner.paths import tools_root
+from repo_scanner.table import render_table
 from repo_scanner.tools.registry import TOOLS
 
 
@@ -27,8 +28,8 @@ def list_tools(install_root: str) -> int:
     rows = []
     for tool in TOOLS.values():
         installed = os.path.exists(tool.installed_path(install_root))
-        status = "installed" if installed else "missing"
-        rows.append((tool.name, tool.version, tool.kind.value, status))
+        on_localhost = "yes" if installed else "no"
+        rows.append((tool.name, tool.version, tool.kind.value, on_localhost))
 
     name_width, version_width, kind_width = 0, 0, 0
     for name, version, kind, _ in rows:
@@ -36,9 +37,7 @@ def list_tools(install_root: str) -> int:
         version_width = max(len(version), version_width)
         kind_width = max(len(kind), kind_width)
 
-    for name, version, kind, status in rows:
-        sys.stdout.write(
-            f"{name:<{name_width}}  {version:<{version_width}}  "
-            f"{kind:<{kind_width}}  {status}\n"
-        )
+    sys.stdout.write(
+        render_table(["name", "version", "kind", "installed on localhost"], rows)
+    )
     return 0
