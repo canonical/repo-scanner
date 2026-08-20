@@ -105,7 +105,7 @@ def test_resolved_parent_is_the_image_dir_for_containers_and_a_cache_for_local()
     assert local == "/tmp/xdg-cache/reposcan/resolved"
 
 
-def test_context_for_runs_the_tool_image_in_a_container() -> None:
+def test_context_for_builds_the_tool_image_with_image_build() -> None:
     def ensure_ok(builder: object, spec: object, *, force: bool = False) -> str:
         return "reposcan:tools"
 
@@ -115,12 +115,34 @@ def test_context_for_runs_the_tool_image_in_a_container() -> None:
     saved = backends.ensure_image
     try:
         backends.ensure_image = ensure_ok
-        ctx = context_for(DockerBackend())
+        ctx = context_for(DockerBackend(), image="build")
         assert isinstance(ctx, DockerContext) and ctx._image == "reposcan:tools"
         backends.ensure_image = ensure_fail
-        assert isinstance(context_for(DockerBackend()), Failure)
+        assert isinstance(context_for(DockerBackend(), image="build"), Failure)
     finally:
         backends.ensure_image = saved
+
+
+def test_context_for_defaults_to_pulling_the_canonical_image() -> None:
+    def remote_ok(puller: object, ref: str) -> str:
+        assert ref == CANONICAL_REF  # the default is the pinned canonical image
+        return f"pulled:{ref}"
+
+    def remote_fail(puller: object, ref: str) -> Failure:
+        return Failure(reason="pull failed")
+
+    saved_pulled = backends.ensure_pulled
+    try:
+        backends.ensure_pulled = remote_ok
+        ctx = context_for(DockerBackend())
+        assert isinstance(ctx, DockerContext)
+        assert ctx._image == f"pulled:{CANONICAL_REF}"
+        backends.ensure_pulled = remote_fail
+        result = context_for(DockerBackend())
+        assert isinstance(result, Failure)
+        assert "--image build" in result.reason  # instructions/alternative in log
+    finally:
+        backends.ensure_pulled = saved_pulled
 
 
 def test_a_configured_image_is_used_whenever_the_backend_can_pull_it() -> None:

@@ -6,21 +6,61 @@ The CLI is `reposcan`, invoked as:
 reposcan <command> [options]
 ```
 
-A command's own options follow the command. Global options may appear anywhere
-on the command line.
+A command's parameters should follow the command. Global options may appear
+anywhere on the command line.
 
 ## Global options
 
-These resolve from CLI parameters, then the environment variable, then the saved
-config, then the default (see [configuration](configuration.md)).
+Global options resolve from the command line, then environment variables, then
+saved config, then the built-in default (see [configuration](configuration.md)).
 
-- `-v, --verbosity <level>`: lowest log level written to stderr, one of `debug`,
-  `info`, `warning`, `error`, `critical`. Env `REPOSCAN_VERBOSITY`, config
-  `verbosity`, fallback `info`.
-- `--backend <name>`: where tools run, one of `auto`, `docker`, `lxd`, `local`.
-  Env `REPOSCAN_BACKEND`, config `backend`, fallback `auto`.
-- `--uid <UID>`: UID for in-container processes (ignored by the local backend).
-  Env `REPOSCAN_UID`, config `uid`, fallback the built-in scan user.
+### `-v`, `--verbosity <level>`
+
+The lowest log level written to stderr.
+
+| Property       | Description                                             |
+| -------------- | ------------------------------------------------------- |
+| Allowed values | one of `debug`, `info`, `warning`, `error`, `critical`. |
+| Env var to set | `REPOSCAN_VERBOSITY`.                                   |
+| Config key     | `verbosity`                                             |
+| Default value  | `info`.                                                 |
+
+### `--backend <name>`
+
+Which backend to use. Containers run each scan in an ephemeral image; `local`
+runs them on the host.
+
+| Property       | Description                                              |
+| -------------- | -------------------------------------------------------- |
+| Allowed values | one of `auto`, `docker`, `lxd`, `local`.                 |
+| Env var to set | `REPOSCAN_BACKEND`.                                      |
+| Config key     | `backend`                                                |
+| Default value  | `auto` -- Docker, then LXD, then local, by availability. |
+
+### `--uid <UID>`
+
+The identity in-container processes run as. By default, reposcan runs as the
+invoking host user (with its groups). The local backend ignores this setting and
+always runs as the invoking user.
+
+| Property       | Description             |
+| -------------- | ----------------------- |
+| Allowed values | a non-negative integer. |
+| Env var to set | `REPOSCAN_UID`.         |
+| Config key     | `uid`                   |
+| Default value  | the invoking host user. |
+
+### `--image <ref>`
+
+The image to run scans in. Not supported for backend=local. See
+[use a published image](../how-to/use-a-published-image.md).
+
+| Property       | Description                                                                    |
+| -------------- | ------------------------------------------------------------------------------ |
+| Allowed values | an OCI reference, `canonical` (the official image), or `build` (build locally) |
+| Env var to set | `REPOSCAN_IMAGE`.                                                              |
+| Config key     | `image`                                                                        |
+| Default value  | `canonical` -- pull the digest-pinned published image from GHCR.               |
 
 ## scan
 
@@ -29,8 +69,7 @@ maps the outcome to an exit code. Types are `secrets`, `sast`, `iac`,
 `workflow`, `sca`, and `sbom`; see the [scans reference](scans.md) for each
 scan's tools, artifact, and options. Common options:
 
-- `-o, --output <FILE>`: write the report to a file instead of stdout (required
-  for `--format sqlite`; refuses to overwrite an existing file).
+- `-o, --output <FILE>`: write the report to a file instead of stdout.
 - `-f, --format <fmt>`: `table` (default, stdout), `json`, or `sqlite`. When
   writing to a file with no `--format`, the format is inferred from the file's
   suffix (`.json`/`.sarif`, `.sqlite`/`.sqlite3`/`.db`, `.txt`); an unrecognized
@@ -55,17 +94,16 @@ sqlite database (detected by content). Options: `-o/--output`, `-f/--format`,
 ## exec
 
 `reposcan exec -- <command>` runs an arbitrary command in the selected execution
-context, including any installed scanning tool. Separate the command from
-reposcan's own options with `--`. Option: `--timeout <SECONDS>` kills the command
-after that long.
+context. Separate the command from reposcan's own options with `--`. Option:
+`--timeout <SECONDS>` kills the command after that long.
 
 ```
 reposcan exec -- trivy --version
 reposcan exec -- semgrep -h
 ```
 
-The scanning tools are symlinked onto `/usr/local/bin` in the tool image, so they
-are on `PATH` and can be run by name. Use `reposcan tools` to list them.
+The scanning tools are symlinked onto `/usr/local/bin` in the tool image, so
+they are on `PATH` and can be run by name. Use `reposcan tools` to list them.
 
 ## tools
 
@@ -75,9 +113,9 @@ selected backend.
 ## bootstrap
 
 `reposcan bootstrap [tools...]` installs tools onto the host (or into the
-backend when `--backend` is given). With no tool names it installs all of them.
-A host install is confirmed interactively first unless `--confirm` is passed.
-The container backends do not need this; they build or pull the tool image.
+backend when `--backend` is given). With no tool names, it installs all of them.
+A host install is confirmed interactively unless `--confirm` is passed. The
+container backends do not need this; they build or pull the tool image.
 
 ## image
 

@@ -25,8 +25,9 @@ Confirm it is on your path:
 
 ## Run a scan
 
-Point a scan at a repository directory. The first container scan builds the tool
-image, which takes a few minutes; later scans reuse it.
+Point a scan at a repository directory. The first container scan pulls the
+published tool image (a few seconds), or builds it locally with `--image build`;
+later scans reuse it.
 
     reposcan scan secrets ./path/to/repo
 

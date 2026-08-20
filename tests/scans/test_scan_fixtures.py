@@ -94,7 +94,11 @@ def _run_fixture(name: str, fixture: _FixtureModule) -> None:
         fixture.plant(repo)
         logger.info("[docker] scanning the %s fixture", name)
         with start_session(
-            "docker", tool_image=True, mount_source=str(repo), user=host_user()
+            "docker",
+            tool_image=True,
+            mount_source=str(repo),
+            user=host_user(),
+            image="build",
         ) as session:
             assert session.ok, f"session failed for {name} (exit {session.exit_code})"
             assert session.target is not None

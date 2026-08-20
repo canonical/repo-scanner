@@ -9,30 +9,15 @@ Persisted settings live in a flat key/value file under `$XDG_CONFIG_HOME`
 
 Each setting resolves from, in order of precedence:
 
-1. the command-line option,
-1. the environment variable,
-1. the saved config value,
-1. the built-in default.
+1. command-line options
+1. environment variables
+1. saved config values
+1. built-in defaults
 
-When two sources set the same value differently, reposcan logs which source won.
-An environment or config value that fails validation is logged and skipped,
-falling through to the next source.
+## Config options
 
-## Keys
-
-- `backend`: the execution backend tools run in. Option `--backend`, env
-  `REPOSCAN_BACKEND`, values `auto`/`docker`/`lxd`/`local`, fallback `auto`.
-  `auto` selects Docker, then LXD, then local, by availability.
-- `verbosity`: the lowest log level written to stderr. Option
-  `-v`/`--verbosity`, env `REPOSCAN_VERBOSITY`, values
-  `debug`/`info`/`warning`/`error`/`critical`, fallback `info`.
-- `uid`: the UID for in-container processes. Option `--uid`, env `REPOSCAN_UID`,
-  a positive integer, fallback the built-in scan user. The local backend ignores
-  it and runs as the invoking user.
-- `image`: the tool image to run. Config-only (no option or environment
-  variable), `canonical` (this project's published image) or any OCI reference,
-  unset to build the image locally. See
-  [use a published image](../how-to/use-a-published-image.md).
+The list of options that can be set in persistent configuration is exactly the
+the list of global options in [commands](./commands.md)
 
 ## Storage locations
 

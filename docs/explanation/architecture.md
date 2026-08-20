@@ -33,15 +33,11 @@ is why it is discouraged for untrusted repositories.
 Every pinned tool is installed into one image, so a container scan starts from a
 single, reproducible environment. The image is content-addressed: its identity
 is a hash of the build script, which embeds every tool's version, download URL,
-and checksum. A container backend builds the image on demand the first time it
-is needed and reuses it while the hash is unchanged; a change to any tool
-version or hash, or to the base image, yields a new hash and triggers a rebuild.
-
-The same image can be published to a registry and pulled instead of built. A
-pulled image carries no prior trust, so reposcan verifies it: a digest-pinned
-reference is trusted by content, and a tag-only reference is pinned on first use
-and refused later if the tag has moved (see
-[use a published image](../how-to/use-a-published-image.md)).
+and checksum. By default, a container backend pulls a published, digest-pinned
+image from GHCR and reuses it. With `--image build`, it builds the image on
+demand instead. It reuses the locally built image for future scans. A change to
+any tool version or hash, or to the base image, yields a new hash and triggers a
+rebuild.
 
 ## Tools
 

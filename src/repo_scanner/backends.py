@@ -24,6 +24,8 @@ from repo_scanner.image.builder import ImageBuilder, ensure_image
 from repo_scanner.image.docker import DockerImageBuilder
 from repo_scanner.image.lxd import LxdImageBuilder
 from repo_scanner.image.remote import (
+    CANONICAL_REF,
+    LOCAL_BUILD_SHORTHAND,
     DockerRemote,
     ImagePuller,
     ensure_pulled,
@@ -258,40 +260,58 @@ def context_for(
 ) -> ExecutionContext | Failure:
     """The container execution context to run in.
 
-    Runs, in order of preference:
+    The image comes from `image`, resolved in this order:
 
-      - the given/configured remote `image`, whenever one is set and the backend can
-        pull it -- honored regardless of `tool_image`;
-      - otherwise the tool image, built on demand and hash-verified, when `tool_image`
-        is set;
-      - otherwise a plain base container.
+      - `"build"`: build the tool image locally.
+      - an explicit reference or `"canonical"`: pull the referenced image.
+      - None (the default): pull the canonical published image.
+
+    A backend that cannot pull (LXD) builds locally instead, regardless of `image`,
+    with a warning.
 
     Args:
         backend: The container backend to produce a context for.
         mount_source: A host directory to make available for scanning, or None.
-        tool_image: Prefer the verified tool image (built on demand) when no explicit
-            `image` is given; else a plain base container.
-        image: A resolved remote image reference to pull and run. When set (and the
-            backend can pull), it is used whether or not `tool_image` is set.
-        user: The identity in-container processes run as by default; None == root.
+        tool_image: Unused when `image` resolves the context; kept for callers that
+            request a plain base container (tool_image=False, image="build").
+        image: The image to run, or a shorthand, or None for the default pull.
+        user: The identity in-container processes run as by default; None runs as
+            root.
 
     Returns:
         A ready context, or a Failure if a pull or build failed.
     """
-    if image:
-        puller = backend.image_puller()
-        if puller is not None:
-            reference = ensure_pulled(puller, resolve_remote_ref(image))
-            if isinstance(reference, Failure):
-                return reference
-            return backend.context(reference, mount_source=mount_source, user=user)
-        logger.warning(
-            "the %s backend cannot pull the configured image %r; %s",
-            backend.name,
-            image,
-            "building the tool image" if tool_image else "using a plain container",
-        )
+    puller = backend.image_puller()
+    if image == LOCAL_BUILD_SHORTHAND or puller is None:
+        if image and image != LOCAL_BUILD_SHORTHAND and puller is None:
+            logger.warning(
+                "the %s backend cannot pull the configured image %r; building the "
+                "tool image locally",
+                backend.name,
+                image,
+            )
+        return _build_tool_context(backend, mount_source, user, tool_image)
+    ref = resolve_remote_ref(image) if image else CANONICAL_REF
+    reference = ensure_pulled(puller, ref)
+    if isinstance(reference, Failure):
+        if image is None:
+            return Failure(
+                reason=(
+                    f"could not pull the image {ref}: {reference.reason}. "
+                    f"Pass --image build to build the tool image locally."
+                )
+            )
+        return reference
+    return backend.context(reference, mount_source=mount_source, user=user)
 
+
+def _build_tool_context(
+    backend: ContainerBackend,
+    mount_source: str | None,
+    user: RunUser | None,
+    tool_image: bool,
+) -> ExecutionContext | Failure:
+    """Build the tool image locally and return its context, or a plain base one."""
     if tool_image:
         reference = ensure_image(
             backend.image_builder(), build_spec(current_platform())
@@ -299,7 +319,6 @@ def context_for(
         if isinstance(reference, Failure):
             return reference
         return backend.context(reference, mount_source=mount_source, user=user)
-
     return backend.context(mount_source=mount_source, user=user)  # plain base container
 
 
@@ -349,8 +368,9 @@ def start_session(
             else a plain container.
         mount_source: A host directory to make available for scanning, or None. The
             session's `target` reports where it is reachable in the context.
-        image: A resolved remote image to pull and run instead of building the tool
-            image locally, or None to build it.
+        image: The tool image to run: an OCI reference, `canonical` (the published
+            image, used by default when unset), or `build` (build locally). Ignored by
+            the local backend beyond `build`.
         user: The identity in-container processes run as by default (container backends
             only); None runs as root. A backend that shifts uids (LXD) maps it before
             the rootfs is shifted. Ignored by the local backend, which runs as the
@@ -374,9 +394,10 @@ def start_session(
     else:
         # Local runs on the host: no image, no identity, no mount -- the source path
         # is the target, used directly as a cwd.
-        if image:
+        if image and image != LOCAL_BUILD_SHORTHAND:
             logger.warning(
-                "the %s backend runs on the host; the configured image %r is ignored",
+                "the %s backend runs on the host and cannot pull the configured "
+                "image %r; it is ignored",
                 backend.name,
                 image,
             )

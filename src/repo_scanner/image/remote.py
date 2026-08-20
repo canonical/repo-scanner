@@ -14,7 +14,13 @@ logger = logging.getLogger(__name__)
 # The `canonical` shorthand: the image reposcan publishes to GHCR (see the
 # publish-image workflow). A user can configure `canonical` instead of the full ref.
 CANONICAL_SHORTHAND = "canonical"
-CANONICAL_REF = "ghcr.io/canonical/repo-scanner:latest"
+CANONICAL_REF = (
+    "ghcr.io/canonical/repo-scanner@sha256:"
+    "461ba0247c49ebfefb01ccf1e7cf2bb99a3f3599464feab1a85ab46b40d795d1"
+)
+
+# build the tool image locally instead of pulling the default.
+LOCAL_BUILD_SHORTHAND = "build"
 
 
 def resolve_remote_ref(value: str) -> str:
@@ -22,7 +28,8 @@ def resolve_remote_ref(value: str) -> str:
 
     Returns:
         The canonical published image for the `canonical` shorthand, otherwise the value
-        unchanged.
+        unchanged. The `build` shorthand is not a remote ref and is handled by the
+        caller (it means "build locally, do not pull").
     """
     return CANONICAL_REF if value == CANONICAL_SHORTHAND else value
 
@@ -73,9 +80,16 @@ class DockerRemote:
 def ensure_pulled(puller: ImagePuller, ref: str) -> str | Failure:
     """Pull `ref` and return the reference to run, or a Failure.
 
-    A digest-pinned ref is trusted directly. A tag-only ref is pinned on first use
-    and, on later pulls, refused if its content id no longer matches what was first
-    recorded.
+    If the `ref` is digest-hash-pinned (e.g., ghcr.io/org/name@sha256:...), we
+    check for and re-use the image if already pulled. Notably, the digest-hash is NOT
+    the same hash we see locally with `docker image inspect`; this hash is the "config
+    hash", which transitively includes hashes of each container filesystem layer.
+    The mapping of digest-hash to config-hash is created by docker when pulling the
+    image.
+
+    A tag-only ref is pinned on first use and -- on later pulls -- refused if its
+    content id no longer matches what was first recorded. It is always pulled over the
+    network to ensure we catch changes (i.e., a new :latest tag).
 
     Args:
         puller: The backend puller that fetches the image and reports its content id.
@@ -85,6 +99,14 @@ def ensure_pulled(puller: ImagePuller, ref: str) -> str | Failure:
         The reference to run, or a Failure if the pull failed, the image is absent
         after pulling, or a tag-only ref's content id no longer matches its record.
     """
+    if is_digest_pinned(ref) and puller.identity(ref) is not None:
+        # fast path: digest-pinned image is already present locally
+        # The digest/manifest hash to local hash association is created by a pull that
+        # verified the manifest's hash, so a present 'inspect' means the content was
+        # trusted at pull time and the local store still has it.
+        logger.info("remote image %s verified locally; reusing without pull", ref)
+        return ref
+
     error = puller.pull(ref)
     if error is not None:
         return error

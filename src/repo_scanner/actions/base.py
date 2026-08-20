@@ -28,10 +28,10 @@ def _parse_uid(value: str) -> int:
 
 
 def _parse_image(value: str) -> str:
-    """`value` if it is a usable image reference, or raise ValueError."""
+    """`value` if it is a usable image reference or shorthand, or raise ValueError."""
     if value.strip():
         return value
-    raise ValueError("give an image reference or 'canonical'")
+    raise ValueError("give an image reference, 'canonical', or 'build'")
 
 
 class Action(_Action):
@@ -52,5 +52,7 @@ class Action(_Action):
     )
     image: str | None = option(
         convert=_parse_image,
-        help="The tool image to run: an OCI reference, or the 'canonical' shorthand.",
+        help="The tool image to run: an OCI reference, 'canonical' (the published "
+        "image, default when unset), or 'build' (build locally instead of "
+        "pulling).",
     )
