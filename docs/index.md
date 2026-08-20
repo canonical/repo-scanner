@@ -22,6 +22,7 @@ Task-oriented recipes for a specific goal.
 - [Run a scan](how-to/run-a-scan.md)
 - [Choose a backend](how-to/choose-a-backend.md)
 - [Use a published image](how-to/use-a-published-image.md)
+- [Scan with GitHub Actions](how-to/scan-with-github-actions.md)
 
 ## Reference
 
