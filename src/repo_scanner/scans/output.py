@@ -4,15 +4,15 @@
 """Render and emit a scan's consolidated artifact.
 
 Every scan result reposcan prints goes through here. On stdout the default is a
-concise, human-readable table; to a file the default is the artifact's native JSON
-document (SARIF or CycloneDX). `--format` overrides either default, and `--limit`
-caps how many rows a table shows.
+concise, human-readable table; to a file the format is inferred from the file's suffix
+(`choose_format`), or set with `--format`. `--limit` caps how many rows a table shows.
 """
 
 import json
 import logging
 import sys
 from enum import Enum
+from pathlib import Path
 
 from repo_scanner.execution.process import Failure
 from repo_scanner.ioutil.table import DEFAULT_WRAP_LINES, render_table
@@ -31,6 +31,41 @@ class Format(str, Enum):
     TABLE = "table"
     JSON = "json"
     SQLITE = "sqlite"  # a binary database; must go to a file, not stdout
+
+
+# File suffixes that name an output format, for inferring --format from -o FILE.
+_SUFFIX_FORMATS = {
+    ".json": Format.JSON,
+    ".sarif": Format.JSON,
+    ".sqlite": Format.SQLITE,
+    ".sqlite3": Format.SQLITE,
+    ".db": Format.SQLITE,
+    ".txt": Format.TABLE,
+}
+
+
+def choose_format(
+    fmt: str | None, output: str | None
+) -> tuple[Format | None, str | None]:
+    """The output format to use, or (None, message) if a file's suffix is unrecognized.
+
+    An explicit `fmt` wins. Otherwise, writing to a file infers the format from the
+    file's suffix, so an unrecognized suffix is an error the caller can refuse on before
+    doing any work. Writing to stdout with no `fmt` returns (None, None), leaving `emit`
+    to fall back to a table.
+    """
+    if fmt is not None:
+        return Format(fmt), None
+    if output is None:
+        return None, None
+    chosen = _SUFFIX_FORMATS.get(Path(output).suffix.lower())
+    if chosen is not None:
+        return chosen, None
+    known = ", ".join(sorted(_SUFFIX_FORMATS))
+    return None, (
+        f"cannot infer the output format from {output!r}: "
+        f"pass --format, or name the file with a known suffix ({known})"
+    )
 
 
 def emit(

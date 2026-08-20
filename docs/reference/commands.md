@@ -31,7 +31,10 @@ scan's tools, artifact, and options. Common options:
 
 - `-o, --output <FILE>`: write the report to a file instead of stdout (required
   for `--format sqlite`; refuses to overwrite an existing file).
-- `-f, --format <fmt>`: `table` (default, stdout), `json`, or `sqlite`.
+- `-f, --format <fmt>`: `table` (default, stdout), `json`, or `sqlite`. When
+  writing to a file with no `--format`, the format is inferred from the file's
+  suffix (`.json`/`.sarif`, `.sqlite`/`.sqlite3`/`.db`, `.txt`); an unrecognized
+  suffix is rejected before the scan runs.
 - `-n, --limit <N>`: maximum table rows shown (default 20).
 - `--wrap <N>`: maximum lines a long table cell may wrap across (default 4; `1`
   keeps each cell to a single clipped line).

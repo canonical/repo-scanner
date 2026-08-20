@@ -89,6 +89,10 @@ class ScanAction(Action):
                 "output file already exists, refusing to overwrite: %s", self.output
             )
             return 2
+        fmt, error = output.choose_format(self.format, self.output)
+        if error is not None:
+            logger.warning("%s", error)
+            return 2
         user = host_user() if self.uid is None else RunUser(self.uid, self.uid, ())
         with start_session(
             self.backend,
@@ -112,7 +116,6 @@ class ScanAction(Action):
                 logger.error(artifact.reason)
                 return 1
 
-            fmt = Format(self.format) if self.format else None
             failure = output.emit(
                 artifact, output=self.output, fmt=fmt, limit=self.limit, wrap=self.wrap
             )

@@ -72,12 +72,12 @@ def render(
     artifact = _load(input_path)
     if artifact is None:
         return 2
+    chosen, error = output.choose_format(fmt, output_path)
+    if error is not None:
+        logger.warning("%s", error)
+        return 2
     failure = output.emit(
-        artifact,
-        output=output_path,
-        fmt=Format(fmt) if fmt else None,
-        limit=limit,
-        wrap=wrap,
+        artifact, output=output_path, fmt=chosen, limit=limit, wrap=wrap
     )
     if isinstance(failure, Failure):
         logger.error(failure.reason)

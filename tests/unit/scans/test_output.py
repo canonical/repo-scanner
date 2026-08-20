@@ -14,7 +14,7 @@ from contextlib import redirect_stdout
 from repo_scanner.execution.process import Failure
 from repo_scanner.ioutil import table
 from repo_scanner.scans import cyclonedx, sarif
-from repo_scanner.scans.output import Format, emit
+from repo_scanner.scans.output import Format, choose_format, emit
 
 
 def _sarif(*levels: str) -> sarif.SarifDocument:
@@ -105,3 +105,15 @@ def test_sqlite_format_writes_a_database_and_requires_a_file() -> None:
         )
     assert count == (1,)  # a real sqlite db with the parsed findings table
     assert isinstance(emit(doc, fmt=Format.SQLITE), Failure)  # no file -> Failure
+
+
+def test_choose_format_uses_the_format_or_infers_it_from_the_suffix() -> None:
+    assert choose_format("table", "out.json") == (Format.TABLE, None)  # explicit wins
+    assert choose_format(None, "out.json") == (Format.JSON, None)  # inferred
+    assert choose_format(None, "out.sqlite") == (Format.SQLITE, None)
+    # matching is case-insensitive:
+    assert choose_format(None, "REPORT.SARIF") == (Format.JSON, None)
+    assert choose_format(None, None) == (None, None)  # stdout: leave emit its default
+    chosen, error = choose_format(None, "out.weird")  # unrecognized suffix, no format
+    assert chosen is None
+    assert error is not None and "out.weird" in error

@@ -10,6 +10,7 @@ import tempfile
 from contextlib import redirect_stdout
 
 from repo_scanner.actions.render import render
+from repo_scanner.ioutil.sqlitedb import is_sqlite
 from repo_scanner.scans import sarif
 
 
@@ -65,3 +66,20 @@ def test_missing_or_unrecognized_input_is_a_usage_error() -> None:
     with tempfile.TemporaryDirectory() as directory:
         path = _write(directory, "junk.txt", "not a report")
         assert render(path) == 2
+
+
+def test_output_format_is_inferred_from_the_file_suffix() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        src = _write(directory, "r.sarif", json.dumps(_sarif_doc()))
+        db = os.path.join(directory, "out.sqlite")  # .sqlite, no --format
+        assert render(src, output_path=db) == 0
+        with open(db, "rb") as handle:
+            assert is_sqlite(handle.read())  # inferred sqlite from the suffix
+
+
+def test_an_unrecognized_output_suffix_is_refused_without_writing() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        src = _write(directory, "r.sarif", json.dumps(_sarif_doc()))
+        out = os.path.join(directory, "out.weird")  # unknown suffix, no --format
+        assert render(src, output_path=out) == 2
+        assert not os.path.exists(out)  # nothing was written
