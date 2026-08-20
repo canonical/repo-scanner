@@ -49,3 +49,23 @@ jobs:
             docker tag "${LOCAL_REF}" "${image}:${tag}"
             docker push "${image}:${tag}"
           done
+
+      - name: Record the published image digest
+        id: published
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          manifest_digest=$(docker buildx imagetools inspect "${image}:${DIGEST}" \
+            | grep -oE 'sha256:[0-9a-f]{64}' | head -n1)
+          pinned="${image}@${manifest_digest}"
+          echo "image-digest=${manifest_digest}" >> "$GITHUB_OUTPUT"
+          echo "pinned-ref=${pinned}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Published image"
+            echo "Pull (digest-pinned): \`${pinned}\`"
+            echo
+            echo "To make this the default image reposcan pulls, set \`CANONICAL_REF\`"
+            echo "in \`src/repo_scanner/image/remote.py\` to the pinned ref above."
+          } >> "$GITHUB_STEP_SUMMARY"
