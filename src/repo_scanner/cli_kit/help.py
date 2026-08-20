@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from repo_scanner.clikit.spec import Action, Group, Param
+from repo_scanner.cli_kit.spec import Action, Group, Param
 
 
 def render(node: type[Action | Group], scope: list[Param], prog: str) -> str:

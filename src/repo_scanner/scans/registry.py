@@ -6,7 +6,7 @@
 Imported and added to the app's command tree by `app.py`.
 """
 
-from repo_scanner.clikit import Group
+from repo_scanner.cli_kit import Group
 from repo_scanner.scans.iac import IacScan
 from repo_scanner.scans.sast import SastScan
 from repo_scanner.scans.sbom import SbomScan

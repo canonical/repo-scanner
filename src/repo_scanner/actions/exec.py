@@ -8,7 +8,7 @@ import sys
 
 from repo_scanner.actions.base import Action
 from repo_scanner.backends import start_session
-from repo_scanner.clikit import option, remainder
+from repo_scanner.cli_kit import option, remainder
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
 

@@ -32,5 +32,5 @@ def test_lists_every_scanning_tool_with_its_install_status() -> None:
     assert "uv" not in lines
     assert "go" not in lines
     # The one we created a marker for is installed; the rest are missing.
-    assert "installed" in lines["trufflehog"]
-    assert "missing" in lines["semgrep"]
+    assert lines["trufflehog"].split()[-1] == "yes"
+    assert lines["semgrep"].split()[-1] == "no"

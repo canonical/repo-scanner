@@ -7,9 +7,9 @@ This is the neutral vocabulary a command declares itself with, independent of th
 CLI engine (which imports it, not the other way round).
 
 A command is a class: it declares its parameters as typed class attributes and
-implements `run`. On dispatch the engine resolves every in-scope parameter
-(CLI > env > config > default) and populates the instance, so `run` reads them as
-plain typed attributes:
+implements `run`. On dispatch the engine resolves every in-scope parameter (via the
+application's resolver) and populates the instance, so `run` reads them as plain
+typed attributes:
 
     class CacheRemove(Action):
         name = "remove"
@@ -25,8 +25,10 @@ subcommand, at any depth -- so `self.backend` is available in every `run`, and
 `reposcan image cache --backend docker remove r1` is accepted. A global is simply a
 parameter declared on the base.
 
-All parsing, resolution, and help rendering live in `repo_scanner.clikit`; this
-module is only the declaration surface plus the `Cli.run` entry point.
+Parsing and help rendering live in `repo_scanner.cli_kit`; resolution (turning
+parsed tokens plus any external sources into values) is supplied by the application
+as the `Cli` resolver. This module is the declaration surface plus the `Cli.run`
+entry point.
 """
 
 from __future__ import annotations
@@ -36,17 +38,19 @@ from typing import Any, ClassVar, Generic, TypeVar
 
 T = TypeVar("T")
 
-# all parameters support resolution from env vars, which must use this prefix
-ENV_PREFIX = "REPOSCAN_"
+# A client-provided function. Given a command's parameters and the coerced
+# command-line values (the parameters actually given), it returns a potentically
+# changed set of parameter values.
+Resolver = Callable[[list["Param"], Mapping[str, Any]], dict[str, Any]]
 
 
 class Param(Generic[T]):
-    """One parameter: how it is spelled, converted, and where it may be read from.
+    """A parameter.
 
     Used as the default of a typed class attribute on a command; the attribute name
-    becomes the parameter's identity -- the resolved-value key, the env var stem
-    (REPOSCAN_<NAME>), the config-file key, and the label in override logs. Build one
-    with `option`/`flag`/`positional`/`remainder` rather than directly.
+    becomes the parameter's identity -- the resolved-value key, the name a resolver
+    reads it by from each source, and the label in override logs. Build one with
+    `option`/`flag`/`positional`/`remainder` rather than directly.
     """
 
     def __init__(
@@ -62,8 +66,6 @@ class Param(Generic[T]):
         many: bool = False,
         required: bool = True,
         is_flag: bool = False,
-        env: bool = True,
-        config: bool = False,
         requires: dict[str, str] | None = None,
     ) -> None:
         self.name = ""  # set by __set_name__ from the class-attribute name
@@ -77,8 +79,6 @@ class Param(Generic[T]):
         self.many = many
         self.required = required
         self.is_flag = is_flag
-        self.env = env
-        self.config = config
         # A cross-option dependency: other-parameter -> the value it must have for
         # this one to be valid, enforced by `check_requires` only when this is set.
         self.requires = requires
@@ -103,11 +103,6 @@ class Param(Generic[T]):
         """Whether the option consumes a following argument on the command line."""
         return not (self.is_flag or self.positional or self.remainder)
 
-    @property
-    def env_var(self) -> str:
-        """The environment variable that sets this parameter (REPOSCAN_<NAME>)."""
-        return ENV_PREFIX + self.name.upper().replace("-", "_").replace(" ", "_")
-
     def __repr__(self) -> str:
         return f"Param({self.name!r})"
 
@@ -128,8 +123,6 @@ def option(
     choices: tuple[T, ...] | None = None,
     convert: Callable[[str], T] | None = None,
     help: str = "",
-    env: bool = True,
-    config: bool = False,
     requires: dict[str, str] | None = None,
 ) -> Any:
     """A value option that consumes a following argument (`--backend docker`).
@@ -146,8 +139,6 @@ def option(
         choices=choices,
         convert=convert,
         help=help,
-        env=env,
-        config=config,
         requires=requires,
     )
 
@@ -156,8 +147,6 @@ def flag(
     extra_flags: str | Iterable[str] | None = None,
     *,
     help: str = "",
-    env: bool = True,
-    config: bool = False,
     requires: dict[str, str] | None = None,
 ) -> Any:
     """A boolean switch that takes no value, defaulting False.
@@ -172,8 +161,6 @@ def flag(
         default=False,
         is_flag=True,
         help=help,
-        env=env,
-        config=config,
         requires=requires,
     )
 
@@ -199,7 +186,6 @@ def positional(
         default=default,
         convert=convert,
         help=help,
-        env=False,
         requires=requires,
     )
 
@@ -209,7 +195,7 @@ def remainder(help: str = "") -> Any:
 
     Command-line only; used for `exec` passthrough.
     """
-    return Param(remainder=True, default=[], help=help, env=False)
+    return Param(remainder=True, default=[], help=help)
 
 
 def params_of(cls: type) -> list[Param]:
@@ -272,9 +258,7 @@ class Action:
             if param.name in values:
                 value = values[param.name]
             elif param.remainder or param.many:
-                value = list(
-                    param.default or []
-                )  # a fresh list, never the shared default
+                value = []  # a fresh list per instance, never a shared default
             else:
                 value = param.default
             setattr(self, param.name, value)
@@ -295,9 +279,9 @@ class Group:
 class Cli:
     """The application: the command tree, the globals-carrying base, and `run`.
 
-    `base` is the command base class whose parameters are the flow-down globals (in
-    scope everywhere); every leaf command subclasses it. `log_level` names the global
-    resolved first so logging is configured before the rest resolve.
+    `base` is the command base class with global parameters; every leaf command
+    subclasses it. `resolve` is an optional client-supplied function to inject/
+    replace parameter values.
     """
 
     def __init__(
@@ -305,21 +289,45 @@ class Cli:
         name: str,
         root: type[Group],
         base: type[Action],
-        log_level: str = "verbosity",
+        resolve: Resolver | None = None,
     ) -> None:
         self.name = name
         self.root = root
         self.base = base
-        self.log_level = log_level
+        self.resolve = resolve
 
     def run(self, argv: Sequence[str] | None = None) -> int:
         """Parse `argv` (default `sys.argv[1:]`), resolve parameters, and dispatch.
 
         Returns an exit code: 0 on success; 2 for a usage error (unknown command or
-        option, an invalid value, a missing positional, or when a subcommand is
-        required); otherwise whatever the selected command's `run` returns. A help
-        request (`-h`/`--help`) prints help and returns 0.
+        option, an invalid value, a missing positional, an unmet requirement, or when
+        a subcommand is required); otherwise whatever the selected command's `run`
+        returns. A help request (`-h`/`--help`) prints help and returns 0.
         """
-        from repo_scanner.clikit.dispatch import dispatch
+        import sys
 
-        return dispatch(self, argv)
+        from repo_scanner.cli_kit.help import render as render_help
+        from repo_scanner.cli_kit.parse import parse
+
+        args = list(sys.argv[1:] if argv is None else argv)
+        parsed = parse(self.root, self.base, args, self.name)
+        if parsed.error is not None:
+            print(f"{parsed.prog}: {parsed.error}", file=sys.stderr)
+            return 2
+        if parsed.help:
+            print(render_help(parsed.node, parsed.scope, parsed.prog))
+            return 0
+        if parsed.command is None:  # stopped at a group; a subcommand is required
+            print(render_help(parsed.node, parsed.scope, parsed.prog), file=sys.stderr)
+            return 2
+        if self.resolve is None:
+            resolved = parsed.values
+        else:
+            resolved = self.resolve(parsed.scope, parsed.values)
+        # Apply each parameter's default for anything unresolved
+        values = {p.name: resolved.get(p.name, p.default) for p in parsed.scope}
+        requirement = check_requires(parsed.scope, values)
+        if requirement is not None:  # an unmet cross-option dependency is a usage error
+            print(f"{parsed.prog}: {requirement}", file=sys.stderr)
+            return 2
+        return parsed.command(**values).run()

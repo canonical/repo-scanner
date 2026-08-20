@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the parameter spec, in particular flag inference (repo_scanner.clikit).
+"""Tests for the parameter spec, in particular flag inference (repo_scanner.cli_kit).
 
 An option/flag's long spelling `--<name>` is inferred from its attribute name; the
 flags passed to the constructor are only extra spellings. Positionals and remainders
@@ -11,7 +11,7 @@ get no flags.
 import pytest
 
 from repo_scanner.actions.base import Action as Globals
-from repo_scanner.clikit import (
+from repo_scanner.cli_kit import (
     Action,
     check_requires,
     flag,
@@ -50,7 +50,7 @@ def test_the_real_globals_infer_their_flags() -> None:
     assert flags["backend"] == ("--backend",)
     assert flags["verbosity"] == ("-v", "--verbosity")
     assert flags["uid"] == ("--uid",)
-    assert flags["image"] == ("--image",)  # config-and-CLI, not config-only
+    assert flags["image"] == ("--image",)
 
 
 class _Fields(Action):

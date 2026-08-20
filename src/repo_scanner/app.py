@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The composed reposcan CLI: the command tree and the `main` entry point."""
+"""reposcan CLI/entrypoint."""
 
 from repo_scanner.actions.base import Action
 from repo_scanner.actions.bootstrap import BootstrapAction
@@ -10,8 +10,9 @@ from repo_scanner.actions.exec import ExecAction
 from repo_scanner.actions.image import ImageGroup
 from repo_scanner.actions.render import RenderAction
 from repo_scanner.actions.tools import ToolsAction
-from repo_scanner.clikit import Cli, Group
+from repo_scanner.cli_kit import Cli, Group
 from repo_scanner.scans.registry import ScanGroup
+from repo_scanner.settings import resolve
 
 
 class Reposcan(Group):
@@ -28,7 +29,7 @@ class Reposcan(Group):
     )
 
 
-APP = Cli(name="reposcan", root=Reposcan, base=Action)
+APP = Cli(name="reposcan", root=Reposcan, base=Action, resolve=resolve)
 
 
 def main(argv: list[str] | None = None) -> int:

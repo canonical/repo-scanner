@@ -1,24 +1,19 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""The `reposcan config` group: read and write persistent configuration.
-
-The supported keys are exactly the parameters declared config-settable on the
-action base; each validates its own value the same way resolution does.
-"""
+"""`reposcan config` commands."""
 
 import logging
 import sys
 
 from repo_scanner.actions.base import Action
-from repo_scanner.clikit import Group, coerce, params_of, positional
+from repo_scanner.cli_kit import Group, coerce, params_of, positional
 from repo_scanner.ioutil.config import load, save
 from repo_scanner.ioutil.table import render_table
 
 logger = logging.getLogger(__name__)
 
-# The config keys, keyed by name: every parameter marked config-settable.
-_KEYS = {p.name: p for p in params_of(Action) if p.config}
+_KEYS = {p.name: p for p in params_of(Action)}
 
 
 class ConfigSet(Action):
@@ -33,7 +28,7 @@ class ConfigSet(Action):
         if param is None:
             logger.error("unknown config key: %s", self.key)
             return 2
-        _, error = coerce(param, self.value, "config")
+        _, error = coerce(param, self.value)
         if error is not None:
             logger.error("%s", error)
             return 2

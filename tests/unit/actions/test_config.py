@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Tests for the `reposcan config` command (set/get/unset over the persisted store).
+"""Tests for `reposcan config`.
 
 Each test isolates XDG_CONFIG_HOME to a temp dir so it never touches a real
 ~/.config/reposcan/config.json.

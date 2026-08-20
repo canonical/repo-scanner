@@ -17,7 +17,7 @@ from typing import ClassVar
 
 from repo_scanner.actions.base import Action
 from repo_scanner.backends import start_session
-from repo_scanner.clikit import flag, option, positional
+from repo_scanner.cli_kit import flag, option, positional
 from repo_scanner.execution.context import RunUser, host_user
 from repo_scanner.execution.process import Failure
 from repo_scanner.scans import output

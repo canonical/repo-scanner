@@ -13,7 +13,7 @@ import sys
 
 from repo_scanner.actions.base import Action
 from repo_scanner.backends import start_session
-from repo_scanner.clikit import flag, positional
+from repo_scanner.cli_kit import flag, positional
 from repo_scanner.execution.context import ExecutionContext
 from repo_scanner.execution.process import Failure
 from repo_scanner.tools.install import current_platform, install_plan

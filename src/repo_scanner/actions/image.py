@@ -8,7 +8,7 @@ import sys
 
 from repo_scanner.actions.base import Action
 from repo_scanner.backends import ContainerBackend, select_backend
-from repo_scanner.clikit import Group, flag, positional
+from repo_scanner.cli_kit import Group, flag, positional
 from repo_scanner.execution.process import Failure
 from repo_scanner.image import cache
 from repo_scanner.image.build_spec import build_spec

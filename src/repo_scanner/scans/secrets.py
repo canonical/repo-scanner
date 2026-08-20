@@ -11,7 +11,7 @@ target -- the git history by default, or the working-tree files in filesystem mo
 import json
 from typing import Any
 
-from repo_scanner.clikit import option
+from repo_scanner.cli_kit import option
 from repo_scanner.scans import sarif
 from repo_scanner.scans.base import ScanAction
 from repo_scanner.scans.model import ToolInvocation, ToolResult

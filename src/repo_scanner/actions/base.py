@@ -11,8 +11,9 @@ inferred from its name, so only the short `-v` is spelled out here.
 """
 
 from repo_scanner.backends import BACKEND_NAMES
-from repo_scanner.clikit import LOG_LEVELS, option
-from repo_scanner.clikit import Action as _Action
+from repo_scanner.cli_kit import Action as _Action
+from repo_scanner.cli_kit import option
+from repo_scanner.ioutil.logging import LOG_LEVELS
 
 
 def _parse_uid(value: str) -> int:
@@ -37,23 +38,19 @@ class Action(_Action):
     backend: str = option(
         default="auto",
         choices=BACKEND_NAMES,
-        config=True,
         help="The execution backend tools run in.",
     )
     verbosity: str = option(
         extra_flags="-v",
         default="info",
         choices=tuple(LOG_LEVELS),
-        config=True,
         help="The lowest log level written to stderr.",
     )
     uid: int | None = option(
         convert=_parse_uid,
-        config=True,
         help="UID for in-backend processes; unset runs as the invoking host user.",
     )
     image: str | None = option(
         convert=_parse_image,
-        config=True,
         help="The tool image to run: an OCI reference, or the 'canonical' shorthand.",
     )
