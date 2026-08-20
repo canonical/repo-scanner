@@ -15,7 +15,7 @@ import sys
 from enum import Enum
 
 from repo_scanner.execution.process import Failure
-from repo_scanner.ioutil.table import render_table
+from repo_scanner.ioutil.table import DEFAULT_WRAP_LINES, render_table
 from repo_scanner.scans import reportdb
 from repo_scanner.scans.model import Artifact
 
@@ -39,7 +39,7 @@ def emit(
     output: str | None = None,
     fmt: Format | None = None,
     limit: int = DEFAULT_ROW_LIMIT,
-    wrap: bool = False,
+    wrap: int = DEFAULT_WRAP_LINES,
 ) -> Failure | None:
     """Render `artifact` and write it to `output` (a file) or stdout.
 
@@ -51,8 +51,7 @@ def emit(
         output: A file to write to, or None for stdout.
         fmt: The chosen format, or None to use the destination's default.
         limit: The maximum number of rows to show in a table.
-        wrap: When True, wrap long table cells across multiple lines (up to a cap)
-            instead of truncating them.
+        wrap: The most lines a long table cell may wrap across.
 
     Returns:
         None on success, or a Failure if the output file already exists (it is not
@@ -102,7 +101,7 @@ def _emit_sqlite(artifact: Artifact, output: str | None) -> Failure | None:
     return None
 
 
-def _table(artifact: Artifact, limit: int, wrap: bool) -> str:
+def _table(artifact: Artifact, limit: int, wrap: int) -> str:
     """A concise text table of the artifact's entries, capped at `limit` rows."""
     headers, rows = artifact.rows()
     shown = rows[:limit] if limit >= 0 else rows

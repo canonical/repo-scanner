@@ -33,7 +33,8 @@ scan's tools, artifact, and options. Common options:
   for `--format sqlite`; refuses to overwrite an existing file).
 - `-f, --format <fmt>`: `table` (default, stdout), `json`, or `sqlite`.
 - `-n, --limit <N>`: maximum table rows shown (default 20).
-- `--wrap`: wrap long table cells instead of truncating.
+- `--wrap <N>`: maximum lines a long table cell may wrap across (default 4; `1`
+  keeps each cell to a single clipped line).
 - `--allow-code-execution`: for `sbom` and `sca` only, let dependency resolution
   build source packages, which runs untrusted code (off by default). See
   [SBOM generation](../explanation/sbom-generation.md).

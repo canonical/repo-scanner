@@ -20,6 +20,7 @@ from repo_scanner.backends import start_session
 from repo_scanner.cli_kit import flag, option, positional
 from repo_scanner.execution.context import RunUser, host_user
 from repo_scanner.execution.process import Failure
+from repo_scanner.ioutil.table import DEFAULT_WRAP_LINES
 from repo_scanner.scans import output
 from repo_scanner.scans.model import Artifact, ArtifactKind, ToolInvocation, ToolResult
 from repo_scanner.scans.output import DEFAULT_ROW_LIMIT, Format
@@ -55,7 +56,11 @@ class ScanAction(Action):
         convert=int,
         help="Maximum rows shown in the table.",
     )
-    wrap: bool = flag(help="Wrap long table cells instead of truncating.")
+    wrap: int = option(
+        default=DEFAULT_WRAP_LINES,
+        convert=int,
+        help="Maximum lines one row in a table may wrap across.",
+    )
 
     def invocations(self, target: str) -> list[ToolInvocation]:
         """The tool invocations to run against `target`, in run order."""

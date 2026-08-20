@@ -10,20 +10,20 @@ and produces aligned columns under a dashed header, shrunk to fit the terminal.
 import shutil
 import textwrap
 
-# Cap on a single table cell's width; longer text is truncated (or wrapped).
-_MAX_CELL_WIDTH = 60
+# The default number of lines a long cell may wrap across.
+DEFAULT_WRAP_LINES = 4
 
-# With `wrap`, the most lines a single cell may span before it is truncated.
-_MAX_WRAP_LINES = 6
+# Cap on a single table cell's width; longer text is wrapped or clipped.
+_MAX_CELL_WIDTH = 60
 
 
 def render_table(
-    headers: list[str], rows: list[list[str]], *, wrap: bool = False
+    headers: list[str], rows: list[list[str]], *, wrap: int = DEFAULT_WRAP_LINES
 ) -> str:
     """A concise text table: aligned columns under a dashed header, fit to the terminal.
 
-    Cells are clipped to fit the terminal width unless `wrap` is set, in which case a
-    long cell spans several lines (up to a cap) instead of being truncated.
+    `wrap` is the most lines a long cell may span; text beyond that is clipped with an
+    ellipsis on the last line. `wrap=1` keeps every cell to a single clipped line.
     """
     widths = [len(header) for header in headers]
     for row in rows:
@@ -31,7 +31,7 @@ def render_table(
             widths[index] = max(widths[index], min(len(cell), _MAX_CELL_WIDTH))
     _fit_to_terminal(widths)
 
-    lines = _render_row(headers, widths, wrap=False)
+    lines = _render_row(headers, widths, wrap=1)  # the header is always one line
     lines.append("  ".join("-" * width for width in widths))
     for row in rows:
         lines.extend(_render_row(row, widths, wrap))
@@ -52,7 +52,7 @@ def _fit_to_terminal(widths: list[int]) -> None:
         widths[widest] -= 1
 
 
-def _render_row(cells: list[str], widths: list[int], wrap: bool) -> list[str]:
+def _render_row(cells: list[str], widths: list[int], wrap: int) -> list[str]:
     """The physical lines for one row: one line, or several when a cell wraps."""
     columns = [
         _cell_lines(cell, widths[index], wrap) for index, cell in enumerate(cells)
@@ -68,13 +68,13 @@ def _render_row(cells: list[str], widths: list[int], wrap: bool) -> list[str]:
     return lines
 
 
-def _cell_lines(cell: str, width: int, wrap: bool) -> list[str]:
-    """A cell rendered as one clipped line, or several wrapped lines under `wrap`."""
-    if not wrap:
+def _cell_lines(cell: str, width: int, wrap: int) -> list[str]:
+    """A cell as up to `wrap` wrapped lines, or one clipped line when `wrap` <= 1."""
+    if wrap <= 1:
         return [_clip(cell, width)]
     wrapped = textwrap.wrap(cell, width) or [""]
-    if len(wrapped) > _MAX_WRAP_LINES:
-        wrapped = wrapped[:_MAX_WRAP_LINES]
+    if len(wrapped) > wrap:
+        wrapped = wrapped[:wrap]
         wrapped[-1] = _clip(wrapped[-1] + " ...", width)
     return wrapped
 

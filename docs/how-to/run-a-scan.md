@@ -50,7 +50,8 @@ options tune the stdout view:
 
 - `--limit N` (`-n`) sets the maximum rows shown (the rest are counted in a log
   line).
-- `--wrap` wraps long cells across lines instead of truncating them.
+- `--wrap N` sets the maximum lines a long cell may wrap across (default 4;
+  `--wrap 1` keeps each cell to a single clipped line).
 
 To convert a report you already saved, use
 [`render`](../reference/commands.md#render) rather than re-running the scan.

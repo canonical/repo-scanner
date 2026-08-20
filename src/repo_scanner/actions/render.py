@@ -10,9 +10,10 @@ it as a table, as JSON, or as a sqlite database.
 import logging
 
 from repo_scanner.actions.base import Action
-from repo_scanner.cli_kit import flag, option, positional
+from repo_scanner.cli_kit import option, positional
 from repo_scanner.execution.process import Failure
 from repo_scanner.ioutil import sqlitedb
+from repo_scanner.ioutil.table import DEFAULT_WRAP_LINES
 from repo_scanner.scans import cyclonedx, output, reportdb, sarif
 from repo_scanner.scans.model import Artifact
 from repo_scanner.scans.output import DEFAULT_ROW_LIMIT, Format
@@ -39,7 +40,11 @@ class RenderAction(Action):
         convert=int,
         help="Maximum rows shown in the table.",
     )
-    wrap: bool = flag(help="Wrap long table cells instead of truncating.")
+    wrap: int = option(
+        default=DEFAULT_WRAP_LINES,
+        convert=int,
+        help="Maximum lines one row in a table may wrap across.",
+    )
 
     def run(self) -> int:
         return render(
@@ -57,7 +62,7 @@ def render(
     fmt: str | None = None,
     output_path: str | None = None,
     limit: int = DEFAULT_ROW_LIMIT,
-    wrap: bool = False,
+    wrap: int = DEFAULT_WRAP_LINES,
 ) -> int:
     """Render the report at `input_path` in the chosen format.
 

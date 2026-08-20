@@ -67,19 +67,20 @@ def test_limit_truncates_wrap_expands_and_neither_exceeds_the_terminal() -> None
     doc = sarif.SarifDocument.from_results(
         "tool", "1.0", [sarif.SarifResult("R", long, "a.py", 1)]
     )
-    plain, wrapped = io.StringIO(), io.StringIO()
-    with redirect_stdout(plain):
-        emit(doc)
+    single, wrapped = io.StringIO(), io.StringIO()
+    with redirect_stdout(single):
+        emit(doc, wrap=1)
     with redirect_stdout(wrapped):
-        emit(doc, wrap=True)
+        emit(doc)  # wrapping is on by default
     columns = shutil.get_terminal_size(fallback=(80, 24)).columns
-    plain_rows, wrapped_rows = (
-        plain.getvalue().splitlines(),
+    single_rows, wrapped_rows = (
+        single.getvalue().splitlines(),
         wrapped.getvalue().splitlines(),
     )
-    assert len(plain_rows[2:]) == 1  # default clips the message to one line
-    assert 1 < len(wrapped_rows[2:]) <= table._MAX_WRAP_LINES  # --wrap spans, capped
-    for line in plain_rows + wrapped_rows:
+    assert len(single_rows[2:]) == 1  # --wrap 1 clips the message to one line
+    # wrapping is on by default and capped at DEFAULT_WRAP_LINES.
+    assert 1 < len(wrapped_rows[2:]) <= table.DEFAULT_WRAP_LINES
+    for line in single_rows + wrapped_rows:
         assert len(line) <= columns  # no line is wider than the terminal
 
 
