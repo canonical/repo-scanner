@@ -98,6 +98,7 @@ runs:
         INPUT_SBOM: ${{ inputs.sbom }}
         INPUT_FAIL_ON: ${{ inputs.fail-on }}
       run: |
+        set +e  # scans with findings exit non-zero
         set -uo pipefail
 
         case "${INPUT_FAIL_ON}" in
@@ -117,6 +118,7 @@ runs:
         log_dir="${results}/logs"
         rm -rf "${results}"
         mkdir -p "${sarif_dir}" "${log_dir}"
+        echo "results-path=${results}" >> "${GITHUB_OUTPUT}"
 
         order=(secrets sast iac workflow sca sbom)
         declare -A enabled=(

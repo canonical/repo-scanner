@@ -1,10 +1,15 @@
-name: repo-scan
+name: dogfood
+
+# runs the repo-scan action defined in the current branch
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
   pull_request:
+    paths:
+      - .github/workflows/**
+      - action.yml
 
 permissions:
   contents: read
@@ -22,7 +27,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0 # full history so the secrets scan (history mode) has commits
-      - uses: canonical/repo-scanner@main
+      - uses: ./
         with:
           fail-on: warning
           pr-comment: true
