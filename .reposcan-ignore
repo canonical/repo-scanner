@@ -7,7 +7,7 @@ trufflehog  SentryToken  src/*/tools/locks/*.txt
 # test fixtures
 trufflehog AWS tests/scans/fixtures/*
 trufflehog URI tests/unit/scans/test_repo.py
-truffelhog AWS tests/integration/test_undecodable_source.py
+trufflehog AWS tests/integration/test_undecodable_source.py
 
 # treat the following as verified action creators
 poutine  github_action_from_unverified_creator_used  **  "uses: canonical/"
@@ -20,3 +20,6 @@ semgrep  *mutable-action-tag   .github/workflows/*.yml  "uses: canonical/reposca
 # binding not supported for a PRAGMA; input is library-controlled and cast to int.
 semgrep  *formatted-sql-query*  src/reposcan/db/sqlite.py  "PRAGMA user_version"
 semgrep  *execute-raw-query*  src/reposcan/db/sqlite.py  "PRAGMA user_version"
+
+# ignore compatibility warning for Python version that was never supported to begin with
+semgrep *python36-compatibility-Popen1 src/reposcan/execution/process.py
