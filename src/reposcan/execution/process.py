@@ -108,6 +108,7 @@ def run_process(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            errors="replace",  # handle non-UTF-8 bytes
         )
     except FileNotFoundError:
         return Err(f"command not found: {argv[0]}")
